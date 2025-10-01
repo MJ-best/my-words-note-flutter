@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/category.dart';
 import '../models/entry.dart';
-import '../services/database_service.dart';
+import '../repositories/entry_repository.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -12,7 +12,7 @@ class CategoriesScreen extends StatefulWidget {
 }
 
 class _CategoriesScreenState extends State<CategoriesScreen> {
-  final DatabaseService _db = DatabaseService.instance;
+  final EntryRepository _repository = EntryRepository();
   List<Category> _categories = [];
   Map<String, int> _entryCounts = {};
   bool _isLoading = true;
@@ -26,12 +26,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> _loadCategories() async {
     setState(() => _isLoading = true);
     try {
-      final categories = await _db.getAllCategories();
+      final categories = await _repository.getAllCategories(forceRefresh: true);
       final Map<String, int> counts = {};
 
       // Count entries per category
       for (final category in categories) {
-        final entries = await _db.getEntriesByCategory(category.name);
+        final entries = await _repository.getEntriesByCategory(category.name);
         counts[category.name] = entries.length;
       }
 
@@ -55,7 +55,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       context: context,
       builder: (context) => AddEditCategoryDialog(
         onSave: (category) async {
-          await _db.createCategory(category);
+          await _repository.createCategory(category);
           _loadCategories();
         },
       ),
@@ -68,7 +68,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       builder: (context) => AddEditCategoryDialog(
         category: category,
         onSave: (updatedCategory) async {
-          await _db.updateCategory(updatedCategory);
+          await _repository.updateCategory(updatedCategory);
           _loadCategories();
         },
       ),
@@ -108,7 +108,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
 
     if (confirm == true) {
-      await _db.deleteCategory(category.id);
+      await _repository.deleteCategory(category.id);
       _loadCategories();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -124,35 +124,37 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       appBar: AppBar(
         title: const Text('Categories'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _categories.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.category_outlined,
-                        size: 64,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.3),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No categories yet',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tap + to create your first category',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
+      body: RefreshIndicator(
+        onRefresh: _loadCategories,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _categories.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.category_outlined,
+                          size: 64,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No categories yet',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tap + to create your first category',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _categories.length,
                   itemBuilder: (context, index) {
@@ -192,6 +194,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     );
                   },
                 ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addCategory,
         child: const Icon(Icons.add),

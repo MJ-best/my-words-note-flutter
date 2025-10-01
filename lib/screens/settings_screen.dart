@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/database_service.dart';
+import '../repositories/entry_repository.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -9,7 +9,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final DatabaseService _db = DatabaseService.instance;
+  final EntryRepository _repository = EntryRepository();
   int _entriesCount = 0;
   int _categoriesCount = 0;
   int _relationshipsCount = 0;
@@ -24,9 +24,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadStatistics() async {
     setState(() => _isLoading = true);
     try {
-      final entriesCount = await _db.getEntriesCount();
-      final categoriesCount = await _db.getCategoriesCount();
-      final relationshipsCount = await _db.getRelationshipsCount();
+      final entriesCount = await _repository.getEntriesCount();
+      final categoriesCount = await _repository.getCategoriesCount();
+      final relationshipsCount = await _repository.getRelationshipsCount();
 
       setState(() {
         _entriesCount = entriesCount;
@@ -85,8 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (doubleConfirm == true) {
         try {
-          await _db.deleteDatabase();
-          await _db.database; // Recreate database
+          await _repository.deleteDatabase();
           _loadStatistics();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
