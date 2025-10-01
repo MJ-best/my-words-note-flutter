@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/categories_screen.dart';
+import 'screens/settings_screen.dart';
 import 'services/database_service.dart';
 
 void main() async {
@@ -60,9 +62,9 @@ class _MainNavigatorState extends State<MainNavigator> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const PlaceholderScreen(title: 'Categories'),
+    const CategoriesScreen(),
     const PlaceholderScreen(title: 'Graph'),
-    const PlaceholderScreen(title: 'Settings'),
+    const SettingsScreen(),
   ];
 
   @override

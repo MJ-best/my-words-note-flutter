@@ -191,6 +191,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.description),
+              title: const Text('Export as Markdown'),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  await _exportService.exportAndShareMarkdown();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Exported successfully')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
+                }
+              },
+            ),
           ],
         ),
       ),

@@ -4,21 +4,25 @@ A personal knowledge management system for translators and interpreters to syste
 
 ## Features
 
-### Phase 1 MVP (Completed)
-- ✅ Entry Management (CRUD operations)
+### Phase 1 MVP ✅ (Completed)
+- ✅ Entry Management (CRUD operations with 16 fields)
 - ✅ SQLite local database with full offline support
-- ✅ Search and filter functionality
+- ✅ Search and filter functionality (full-text search)
 - ✅ Favorites system
-- ✅ Data export (JSON, CSV, Plain Text)
+- ✅ Category management with visual customization (10 colors, 11 icons)
+- ✅ Settings screen (statistics, data management, app info)
+- ✅ Data export (JSON, CSV, Plain Text, **Markdown**)
 - ✅ Bottom navigation
 - ✅ Dark mode support
 
+### Phase 2 (Partial) ✅
+- ✅ **Markdown Export** - Structured format with table of contents and internal links
+
 ### Coming Soon
-- Category management screen
-- Graph visualization of relationships
-- Google Drive backup/sync
-- Tablet responsive design
-- Data import functionality
+- 🚧 Graph visualization of relationships (in progress)
+- ⏳ Google Drive backup/sync
+- ⏳ Tablet responsive design
+- ⏳ Data import functionality
 
 ## Tech Stack
 
@@ -31,19 +35,21 @@ A personal knowledge management system for translators and interpreters to syste
 
 ```
 lib/
-├── main.dart                 # App entry point
-├── models/                   # Data models
-│   ├── entry.dart           # Entry model with all fields
-│   ├── relationship.dart    # Relationship model for graph
-│   └── category.dart        # Category model
-├── services/                # Business logic
-│   ├── database_service.dart    # SQLite CRUD operations
-│   └── export_service.dart      # Export to JSON/CSV/TXT
-├── screens/                 # UI screens
-│   ├── home_screen.dart           # Main entry list
-│   ├── add_edit_entry_screen.dart # Create/edit entries
-│   └── entry_detail_screen.dart   # View entry details
-└── widgets/                 # Reusable UI components
+├── main.dart                      # App entry with bottom navigation
+├── models/                        # Data models
+│   ├── entry.dart                # Entry model (16 fields)
+│   ├── relationship.dart         # Relationship model (6 types)
+│   └── category.dart             # Category model with color/icon
+├── services/                      # Business logic
+│   ├── database_service.dart     # SQLite CRUD + search + stats
+│   └── export_service.dart       # Export JSON/CSV/TXT/MD
+├── screens/                       # UI screens
+│   ├── home_screen.dart          # Entry list + search + export
+│   ├── add_edit_entry_screen.dart # Create/edit entries (full form)
+│   ├── entry_detail_screen.dart  # View entry details
+│   ├── categories_screen.dart    # Category management
+│   └── settings_screen.dart      # Statistics + app info
+└── widgets/                       # Reusable UI components
 ```
 
 ## Database Schema
@@ -105,18 +111,32 @@ flutter build ios --release
 
 ## Usage
 
-1. **Add Entry**: Tap the + button on the home screen
-2. **Search**: Use the search bar at the top
+### Home Screen
+1. **Add Entry**: Tap the + button to create a new entry
+2. **Search**: Use the search bar for full-text search
 3. **Filter**: Tap the heart icon to show favorites only
-4. **Export**: Tap the upload icon to export data
-5. **Edit/Delete**: Tap an entry to view details, then use the toolbar
+4. **Export**: Tap the upload icon to choose export format
+5. **View Details**: Tap any entry to see full information
+
+### Categories Screen
+1. **Add Category**: Tap the + button
+2. **Customize**: Choose from 10 colors and 11 icons
+3. **Manage**: Edit or delete categories (with entry count protection)
+
+### Settings Screen
+- View statistics (entries, categories, relationships)
+- Refresh data
+- Clear all data (with double confirmation)
+- App information and license
 
 ## Data Export
 
-Export your data in multiple formats:
-- **JSON**: Complete data structure with all relationships
-- **CSV**: Spreadsheet-compatible format
-- **Plain Text**: Simple text file organized by category
+Export your data in 4 formats:
+
+- **JSON**: Complete data structure with entries, relationships, and categories (ideal for backup/restore)
+- **CSV**: Spreadsheet-compatible tabular format (for Excel/Google Sheets)
+- **Plain Text**: Simple, readable format organized by category
+- **Markdown**: Beautifully formatted with table of contents, internal links, and collapsible metadata (great for documentation)
 
 ## Roadmap
 

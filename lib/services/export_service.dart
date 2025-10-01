@@ -228,4 +228,196 @@ class ExportService {
       throw Exception('Failed to export plain text: $e');
     }
   }
+
+  // ==================== Markdown Export ====================
+
+  Future<String> exportToMarkdown() async {
+    final entries = await _db.getAllEntries();
+    final relationships = await _db.getAllRelationships();
+    final buffer = StringBuffer();
+
+    buffer.writeln('# TransKnowledge Export');
+    buffer.writeln();
+    buffer.writeln('**Export Date:** ${DateTime.now().toIso8601String()}');
+    buffer.writeln('**Total Entries:** ${entries.length}');
+    buffer.writeln('**Total Relationships:** ${relationships.length}');
+    buffer.writeln();
+    buffer.writeln('---');
+    buffer.writeln();
+
+    // Group by category
+    final Map<String, List<Entry>> categorizedEntries = {};
+    for (final entry in entries) {
+      if (!categorizedEntries.containsKey(entry.category)) {
+        categorizedEntries[entry.category] = [];
+      }
+      categorizedEntries[entry.category]!.add(entry);
+    }
+
+    // Table of Contents
+    buffer.writeln('## Table of Contents');
+    buffer.writeln();
+    for (final category in categorizedEntries.keys) {
+      final slug = category.toLowerCase().replaceAll(' ', '-');
+      buffer.writeln('- [$category](#$slug)');
+    }
+    buffer.writeln();
+    buffer.writeln('---');
+    buffer.writeln();
+
+    // Write each category
+    for (final category in categorizedEntries.keys) {
+      buffer.writeln('## $category');
+      buffer.writeln();
+
+      for (final entry in categorizedEntries[category]!) {
+        // Entry ID as anchor
+        buffer.writeln('<a name="${entry.id}"></a>');
+        buffer.writeln();
+
+        // Main translation
+        buffer.writeln('### ${entry.sourceText}');
+        buffer.writeln();
+        buffer.writeln('**Translation:** ${entry.targetText}');
+        buffer.writeln();
+
+        // Type badge
+        buffer.writeln('`${entry.type.toUpperCase()}`');
+        if (entry.isFavorite) {
+          buffer.write(' ⭐');
+        }
+        buffer.writeln();
+        buffer.writeln();
+
+        // Languages
+        buffer.writeln('**Languages:** ${entry.sourceLanguage} → ${entry.targetLanguage}');
+        buffer.writeln();
+
+        // Pronunciation
+        if (entry.pronunciation != null) {
+          buffer.writeln('**Pronunciation:** *[${entry.pronunciation}]*');
+          buffer.writeln();
+        }
+
+        // Tags
+        if (entry.tags.isNotEmpty) {
+          buffer.write('**Tags:** ');
+          buffer.writeln(entry.tags.map((t) => '`$t`').join(' '));
+          buffer.writeln();
+        }
+
+        // Context
+        if (entry.context != null) {
+          buffer.writeln('**Context/Usage:**');
+          buffer.writeln('> ${entry.context}');
+          buffer.writeln();
+        }
+
+        // Notes
+        if (entry.notes != null) {
+          buffer.writeln('**Notes:**');
+          buffer.writeln(entry.notes);
+          buffer.writeln();
+        }
+
+        // Metrics
+        if (entry.difficultyLevel != null || entry.frequency != null) {
+          buffer.write('**Metrics:** ');
+          if (entry.difficultyLevel != null) {
+            buffer.write('Difficulty: ${'★' * entry.difficultyLevel!}');
+          }
+          if (entry.frequency != null) {
+            if (entry.difficultyLevel != null) buffer.write(' | ');
+            buffer.write('Frequency: ${_getFrequencyLabel(entry.frequency!)}');
+          }
+          buffer.writeln();
+          buffer.writeln();
+        }
+
+        // Source Reference
+        if (entry.sourceReference != null) {
+          buffer.writeln('**Source:** ${entry.sourceReference}');
+          buffer.writeln();
+        }
+
+        // Relationships
+        final entryRelationships = relationships.where(
+          (r) => r.fromEntryId == entry.id || r.toEntryId == entry.id,
+        ).toList();
+
+        if (entryRelationships.isNotEmpty) {
+          buffer.writeln('**Relationships:**');
+          for (final rel in entryRelationships) {
+            final relatedId = rel.fromEntryId == entry.id
+                ? rel.toEntryId
+                : rel.fromEntryId;
+            buffer.writeln('- ${RelationshipType.getDisplayName(rel.relationshipType)}: [Entry](#$relatedId)');
+          }
+          buffer.writeln();
+        }
+
+        // Metadata
+        buffer.writeln('<details>');
+        buffer.writeln('<summary>Metadata</summary>');
+        buffer.writeln();
+        buffer.writeln('- **ID:** `${entry.id}`');
+        buffer.writeln('- **Created:** ${entry.createdAt.toIso8601String()}');
+        buffer.writeln('- **Updated:** ${entry.updatedAt.toIso8601String()}');
+        buffer.writeln();
+        buffer.writeln('</details>');
+        buffer.writeln();
+
+        buffer.writeln('---');
+        buffer.writeln();
+      }
+    }
+
+    // Footer
+    buffer.writeln('## Export Information');
+    buffer.writeln();
+    buffer.writeln('Generated by **TransKnowledge**');
+    buffer.writeln();
+    buffer.writeln('- GitHub: [github.com/MJ-best/my-words-note-flutter](https://github.com/MJ-best/my-words-note-flutter)');
+    buffer.writeln('- License: MIT');
+
+    return buffer.toString();
+  }
+
+  String _getFrequencyLabel(int frequency) {
+    switch (frequency) {
+      case 1:
+        return 'Rare';
+      case 2:
+        return 'Uncommon';
+      case 3:
+        return 'Common';
+      case 4:
+        return 'Frequent';
+      case 5:
+        return 'Very Frequent';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  Future<File> saveMarkdownToFile(String content) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+    final file = File('${directory.path}/transknowledge_export_$timestamp.md');
+    return await file.writeAsString(content);
+  }
+
+  Future<void> exportAndShareMarkdown() async {
+    try {
+      final content = await exportToMarkdown();
+      final file = await saveMarkdownToFile(content);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'TransKnowledge Export',
+        text: 'My TransKnowledge data export (Markdown)',
+      );
+    } catch (e) {
+      throw Exception('Failed to export markdown: $e');
+    }
+  }
 }
