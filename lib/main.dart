@@ -1,28 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'screens/home_screen_improved.dart';
 import 'screens/categories_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/database_service.dart';
 import 'providers/entry_provider.dart';
+import 'repositories/entry_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize database
-  await DatabaseService.instance.database;
+  if (kIsWeb) {
+    // Use FFI for web
+    databaseFactory = databaseFactoryFfi;
+  }
 
-  runApp(const MyApp());
+  // Initialize database
+  final dbService = DatabaseService.instance;
+  await dbService.database;
+
+  runApp(MyApp(databaseService: dbService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final DatabaseService databaseService;
+
+  const MyApp({super.key, required this.databaseService});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => EntryProvider()),
+        ChangeNotifierProvider(
+          create: (_) => EntryProvider(
+            repository: EntryRepository(databaseService: databaseService),
+          ),
+        ),
       ],
       child: MaterialApp(
         title: 'TransKnowledge',

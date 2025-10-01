@@ -50,7 +50,7 @@ class EntryProvider with ChangeNotifier {
       _currentPage = 0;
       _entries.clear();
       _hasMore = true;
-      await _repository.clearCache();
+      _repository.clearCache();
     }
 
     if (_isLoading || _isLoadingMore) return;
