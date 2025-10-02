@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../repositories/entry_repository.dart';
 
@@ -40,44 +41,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _clearDatabase() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showCupertinoDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => CupertinoAlertDialog(
         title: const Text('Clear All Data'),
         content: const Text(
           'This will permanently delete ALL entries, categories, and relationships. This action cannot be undone.\n\nAre you sure?',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
+          CupertinoDialogAction(
             child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context, false),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             child: const Text('Delete All'),
+            onPressed: () => Navigator.pop(context, true),
           ),
         ],
       ),
     );
 
     if (confirm == true) {
-      final doubleConfirm = await showDialog<bool>(
+      final doubleConfirm = await showCupertinoDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => CupertinoAlertDialog(
           title: const Text('Final Confirmation'),
           content: const Text(
             'Are you absolutely sure? This is your last chance to cancel.',
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
+            CupertinoDialogAction(
               child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context, false),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
               child: const Text('Yes, Delete Everything'),
+              onPressed: () => Navigator.pop(context, true),
             ),
           ],
         ),
@@ -88,14 +89,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await _repository.deleteDatabase();
           _loadStatistics();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('All data has been deleted')),
+            showCupertinoDialog(
+              context: context,
+              builder: (context) => CupertinoAlertDialog(
+                content: const Text('All data has been deleted'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
             );
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error clearing database: $e')),
+            showCupertinoDialog(
+              context: context,
+              builder: (context) => CupertinoAlertDialog(
+                title: const Text('Error'),
+                content: Text('Error clearing database: $e'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
             );
           }
         }
@@ -105,136 +125,206 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('Settings'),
       ),
-      body: ListView(
-        children: [
-          // App Info Section
-          _buildSectionHeader('App Information'),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Version'),
-            subtitle: const Text('1.0.0+1'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Developer'),
-            subtitle: const Text('Min Jun (@MJ-best)'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.code),
-            title: const Text('Open Source'),
-            subtitle: const Text('github.com/MJ-best/my-words-note-flutter'),
-            onTap: () {
-              // Could open URL in browser
-            },
-          ),
-          const Divider(),
+      child: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // App Info Section
+            SliverToBoxAdapter(
+              child: _buildSectionHeader('App Information'),
+            ),
+            SliverToBoxAdapter(
+              child: CupertinoListSection.insetGrouped(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  CupertinoListTile(
+                    leading: const Icon(CupertinoIcons.info_circle),
+                    title: const Text('Version'),
+                    trailing: const Text(
+                      '1.0.0+1',
+                      style: TextStyle(color: CupertinoColors.secondaryLabel),
+                    ),
+                  ),
+                  CupertinoListTile(
+                    leading: const Icon(CupertinoIcons.person),
+                    title: const Text('Developer'),
+                    trailing: const Text(
+                      'Min Jun (@MJ-best)',
+                      style: TextStyle(color: CupertinoColors.secondaryLabel),
+                    ),
+                  ),
+                  CupertinoListTile(
+                    leading: const Icon(CupertinoIcons.link),
+                    title: const Text('Open Source'),
+                    subtitle: const Text('github.com/MJ-best/my-words-note-flutter'),
+                    trailing: const Icon(CupertinoIcons.chevron_right),
+                    onTap: () {
+                      // Could open URL in browser
+                    },
+                  ),
+                ],
+              ),
+            ),
 
-          // Statistics Section
-          _buildSectionHeader('Statistics'),
-          _isLoading
-              ? const ListTile(
-                  title: Center(child: CircularProgressIndicator()),
-                )
-              : Column(
+            // Statistics Section
+            SliverToBoxAdapter(
+              child: _buildSectionHeader('Statistics'),
+            ),
+            SliverToBoxAdapter(
+              child: _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CupertinoActivityIndicator(radius: 20)),
+                    )
+                  : CupertinoListSection.insetGrouped(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        CupertinoListTile(
+                          leading: const Icon(CupertinoIcons.doc_text),
+                          title: const Text('Total Entries'),
+                          trailing: Text(
+                            '$_entriesCount',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.label,
+                            ),
+                          ),
+                        ),
+                        CupertinoListTile(
+                          leading: const Icon(CupertinoIcons.square_grid_2x2),
+                          title: const Text('Categories'),
+                          trailing: Text(
+                            '$_categoriesCount',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.label,
+                            ),
+                          ),
+                        ),
+                        CupertinoListTile(
+                          leading: const Icon(CupertinoIcons.link),
+                          title: const Text('Relationships'),
+                          trailing: Text(
+                            '$_relationshipsCount',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.label,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+
+            // Data Management Section
+            SliverToBoxAdapter(
+              child: _buildSectionHeader('Data Management'),
+            ),
+            SliverToBoxAdapter(
+              child: CupertinoListSection.insetGrouped(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  CupertinoListTile(
+                    leading: const Icon(CupertinoIcons.refresh),
+                    title: const Text('Refresh Statistics'),
+                    trailing: const Icon(CupertinoIcons.chevron_right),
+                    onTap: _loadStatistics,
+                  ),
+                  CupertinoListTile(
+                    leading: const Icon(
+                      CupertinoIcons.delete,
+                      color: CupertinoColors.systemRed,
+                    ),
+                    title: const Text(
+                      'Clear All Data',
+                      style: TextStyle(color: CupertinoColors.systemRed),
+                    ),
+                    subtitle: const Text('Permanently delete all entries and data'),
+                    trailing: const Icon(
+                      CupertinoIcons.chevron_right,
+                      color: CupertinoColors.systemRed,
+                    ),
+                    onTap: _clearDatabase,
+                  ),
+                ],
+              ),
+            ),
+
+            // About Section
+            SliverToBoxAdapter(
+              child: _buildSectionHeader('About'),
+            ),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ListTile(
-                      leading: const Icon(Icons.article_outlined),
-                      title: const Text('Total Entries'),
-                      trailing: Text(
-                        '$_entriesCount',
-                        style: Theme.of(context).textTheme.titleLarge,
+                    Text(
+                      'TransKnowledge is a personal knowledge management system for translators and interpreters to build and manage specialized terminology with relationship visualization.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: CupertinoColors.label,
                       ),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.category_outlined),
-                      title: const Text('Categories'),
-                      trailing: Text(
-                        '$_categoriesCount',
-                        style: Theme.of(context).textTheme.titleLarge,
+                    SizedBox(height: 16),
+                    Text(
+                      'Features:',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: CupertinoColors.label,
                       ),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.link),
-                      title: const Text('Relationships'),
-                      trailing: Text(
-                        '$_relationshipsCount',
-                        style: Theme.of(context).textTheme.titleLarge,
+                    SizedBox(height: 8),
+                    Text(
+                      '• Offline-first design\n'
+                      '• Relationship mapping\n'
+                      '• Multi-format export\n'
+                      '• Category organization\n'
+                      '• Search and filtering',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: CupertinoColors.label,
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    Center(
+                      child: Text(
+                        'Licensed under MIT License\n© 2025 Min Jun',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.secondaryLabel,
+                        ),
                       ),
                     ),
                   ],
                 ),
-          const Divider(),
-
-          // Data Management Section
-          _buildSectionHeader('Data Management'),
-          ListTile(
-            leading: const Icon(Icons.refresh),
-            title: const Text('Refresh Statistics'),
-            onTap: _loadStatistics,
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_forever, color: Colors.red),
-            title: const Text(
-              'Clear All Data',
-              style: TextStyle(color: Colors.red),
-            ),
-            subtitle: const Text('Permanently delete all entries and data'),
-            onTap: _clearDatabase,
-          ),
-          const Divider(),
-
-          // About Section
-          _buildSectionHeader('About'),
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'TransKnowledge is a personal knowledge management system for translators and interpreters to build and manage specialized terminology with relationship visualization.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              'Features:\n'
-              '• Offline-first design\n'
-              '• Relationship mapping\n'
-              '• Multi-format export\n'
-              '• Category organization\n'
-              '• Search and filtering',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // License
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Center(
-              child: Text(
-                'Licensed under MIT License\n© 2025 Min Jun',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(32, 24, 16, 8),
       child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: CupertinoColors.secondaryLabel,
+          letterSpacing: -0.08,
         ),
       ),
     );

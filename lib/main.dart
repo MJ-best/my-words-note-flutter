@@ -1,9 +1,11 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'screens/home_screen_improved.dart';
 import 'screens/categories_screen.dart';
+import 'screens/graph_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/database_service.dart';
 import 'providers/entry_provider.dart';
@@ -39,129 +41,81 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ],
-      child: MaterialApp(
+      child: CupertinoApp(
         title: 'TransKnowledge',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: true,
-            elevation: 0,
-          ),
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: true,
-            elevation: 0,
+        theme: const CupertinoThemeData(
+          brightness: Brightness.light,
+          primaryColor: CupertinoColors.systemBlue,
+          textTheme: CupertinoTextThemeData(
+            navTitleTextStyle: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: CupertinoColors.label,
+            ),
+            textStyle: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w400,
+              color: CupertinoColors.label,
+            ),
           ),
         ),
-        themeMode: ThemeMode.system,
         home: const MainNavigator(),
       ),
     );
   }
 }
 
-class MainNavigator extends StatefulWidget {
+class MainNavigator extends StatelessWidget {
   const MainNavigator({super.key});
 
   @override
-  State<MainNavigator> createState() => _MainNavigatorState();
-}
-
-class _MainNavigatorState extends State<MainNavigator> {
-  int _currentIndex = 0;
-
-  final List<Widget> _screens = [
-    const HomeScreenImproved(),
-    const CategoriesScreen(),
-    const PlaceholderScreen(title: 'Graph'),
-    const SettingsScreen(),
-  ];
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+    return CupertinoTabScaffold(
+      tabBar: CupertinoTabBar(
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.home),
             label: 'Home',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.category_outlined),
-            selectedIcon: Icon(Icons.category),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.square_grid_2x2),
             label: 'Categories',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.account_tree_outlined),
-            selectedIcon: Icon(Icons.account_tree),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.graph_square),
             label: 'Graph',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.settings),
             label: 'Settings',
           ),
         ],
       ),
-    );
-  }
-}
-
-class PlaceholderScreen extends StatelessWidget {
-  final String title;
-
-  const PlaceholderScreen({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.construction,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title Screen',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon...',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ),
-      ),
+      tabBuilder: (context, index) {
+        switch (index) {
+          case 0:
+            return CupertinoTabView(
+              builder: (context) => const HomeScreenImproved(),
+            );
+          case 1:
+            return CupertinoTabView(
+              builder: (context) => const CategoriesScreen(),
+            );
+          case 2:
+            return CupertinoTabView(
+              builder: (context) => const GraphScreen(),
+            );
+          case 3:
+            return CupertinoTabView(
+              builder: (context) => const SettingsScreen(),
+            );
+          default:
+            return CupertinoTabView(
+              builder: (context) => const HomeScreenImproved(),
+            );
+        }
+      },
     );
   }
 }

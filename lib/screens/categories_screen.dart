@@ -1,7 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/category.dart';
-import '../models/entry.dart';
 import '../repositories/entry_repository.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -43,15 +43,25 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading categories: $e')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Error'),
+            content: Text('Error loading categories: $e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     }
   }
 
   Future<void> _addCategory() async {
-    await showDialog(
+    await showCupertinoDialog(
       context: context,
       builder: (context) => AddEditCategoryDialog(
         onSave: (category) async {
@@ -63,7 +73,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Future<void> _editCategory(Category category) async {
-    await showDialog(
+    await showCupertinoDialog(
       context: context,
       builder: (context) => AddEditCategoryDialog(
         category: category,
@@ -79,29 +89,37 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final entryCount = _entryCounts[category.name] ?? 0;
 
     if (entryCount > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Cannot Delete'),
           content: Text(
               'Cannot delete category with $entryCount entries. Reassign or delete entries first.'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
         ),
       );
       return;
     }
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showCupertinoDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => CupertinoAlertDialog(
         title: const Text('Delete Category'),
         content: Text('Delete "${category.name}"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
+          CupertinoDialogAction(
             child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context, false),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             child: const Text('Delete'),
+            onPressed: () => Navigator.pop(context, true),
           ),
         ],
       ),
@@ -110,94 +128,164 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     if (confirm == true) {
       await _repository.deleteCategory(category.id);
       _loadCategories();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Category deleted')),
-        );
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Categories'),
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('Categories'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadCategories,
+      child: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CupertinoActivityIndicator(radius: 20))
             : _categories.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.category_outlined,
+                        const Icon(
+                          CupertinoIcons.square_grid_2x2,
                           size: 64,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.3),
+                          color: CupertinoColors.systemGrey3,
                         ),
                         const SizedBox(height: 16),
-                        Text(
+                        const Text(
                           'No categories yet',
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.label,
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        const Text(
                           'Tap + to create your first category',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        CupertinoButton.filled(
+                          onPressed: _addCategory,
+                          child: const Text('Add Category'),
                         ),
                       ],
                     ),
                   )
-                : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    final category = _categories[index];
-                    final entryCount = _entryCounts[category.name] ?? 0;
-
-                    return Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: category.getColor(),
-                          child: Icon(
-                            category.getIcon(),
-                            color: Colors.white,
-                          ),
-                        ),
-                        title: Text(
-                          category.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          '$entryCount ${entryCount == 1 ? 'entry' : 'entries'}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => _editCategory(category),
+                : Column(
+                    children: [
+                      Expanded(
+                        child: CustomScrollView(
+                          slivers: [
+                            CupertinoSliverRefreshControl(
+                              onRefresh: _loadCategories,
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => _deleteCategory(category),
+                            SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final category = _categories[index];
+                                  final entryCount =
+                                      _entryCounts[category.name] ?? 0;
+
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: CupertinoColors.systemBackground,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: CupertinoColors.separator,
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: CupertinoListTile(
+                                      leading: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: category.getColor(),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          category.getIcon(),
+                                          color: CupertinoColors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        category.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 17,
+                                          color: CupertinoColors.label,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '$entryCount ${entryCount == 1 ? 'entry' : 'entries'}',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: CupertinoColors.secondaryLabel,
+                                        ),
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CupertinoButton(
+                                            padding: EdgeInsets.zero,
+                                            minSize: 44,
+                                            onPressed: () =>
+                                                _editCategory(category),
+                                            child: const Icon(
+                                              CupertinoIcons.pencil,
+                                              size: 22,
+                                            ),
+                                          ),
+                                          CupertinoButton(
+                                            padding: EdgeInsets.zero,
+                                            minSize: 44,
+                                            onPressed: () =>
+                                                _deleteCategory(category),
+                                            child: const Icon(
+                                              CupertinoIcons.delete,
+                                              color: CupertinoColors.systemGrey,
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                childCount: _categories.length,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
-                ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addCategory,
-        child: const Icon(Icons.add),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: CupertinoButton.filled(
+                            padding: EdgeInsets.zero,
+                            onPressed: _addCategory,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(CupertinoIcons.add, size: 20),
+                                SizedBox(width: 8),
+                                Text('Add Category'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
       ),
     );
   }
@@ -259,8 +347,17 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
 
   void _save() {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a category name')),
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          content: const Text('Please enter a category name'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
       );
       return;
     }
@@ -279,24 +376,23 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return CupertinoAlertDialog(
       title: Text(widget.category == null ? 'Add Category' : 'Edit Category'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
+            const SizedBox(height: 16),
+            CupertinoTextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Category Name',
-                border: OutlineInputBorder(),
-              ),
+              placeholder: 'Category Name',
+              padding: const EdgeInsets.all(12),
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Color',
-              style: Theme.of(context).textTheme.titleSmall,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -320,20 +416,21 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
                       color: color,
                       shape: BoxShape.circle,
                       border: isSelected
-                          ? Border.all(color: Colors.black, width: 3)
+                          ? Border.all(color: CupertinoColors.black, width: 3)
                           : null,
                     ),
                     child: isSelected
-                        ? const Icon(Icons.check, color: Colors.white)
+                        ? const Icon(CupertinoIcons.check,
+                            color: CupertinoColors.white)
                         : null,
                   ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Icon',
-              style: Theme.of(context).textTheme.titleSmall,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -353,20 +450,19 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
                     height: 48,
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(context).colorScheme.surfaceVariant,
+                          ? CupertinoColors.systemBlue
+                          : CupertinoColors.systemGrey6,
                       borderRadius: BorderRadius.circular(8),
                       border: isSelected
                           ? Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2)
+                              color: CupertinoColors.systemBlue, width: 2)
                           : null,
                     ),
                     child: Icon(
                       _getIconData(iconData['value']),
                       color: isSelected
-                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ? CupertinoColors.white
+                          : CupertinoColors.label,
                     ),
                   ),
                 );
@@ -376,11 +472,12 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
+        CupertinoDialogAction(
           child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(context),
         ),
-        FilledButton(
+        CupertinoDialogAction(
+          isDefaultAction: true,
           onPressed: _save,
           child: const Text('Save'),
         ),
@@ -391,27 +488,27 @@ class _AddEditCategoryDialogState extends State<AddEditCategoryDialog> {
   IconData _getIconData(String iconName) {
     switch (iconName) {
       case 'book':
-        return Icons.book;
+        return CupertinoIcons.book;
       case 'work':
-        return Icons.work;
+        return CupertinoIcons.briefcase;
       case 'school':
-        return Icons.school;
+        return CupertinoIcons.book_solid;
       case 'translate':
-        return Icons.translate;
+        return CupertinoIcons.textformat_abc;
       case 'language':
-        return Icons.language;
+        return CupertinoIcons.globe;
       case 'chat':
-        return Icons.chat;
+        return CupertinoIcons.chat_bubble;
       case 'business':
-        return Icons.business;
+        return CupertinoIcons.building_2_fill;
       case 'medical':
-        return Icons.medical_services;
+        return CupertinoIcons.heart_fill;
       case 'science':
-        return Icons.science;
+        return CupertinoIcons.lab_flask;
       case 'food':
-        return Icons.restaurant;
+        return CupertinoIcons.cart;
       default:
-        return Icons.category;
+        return CupertinoIcons.square_grid_2x2;
     }
   }
 

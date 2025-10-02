@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/entry.dart';
@@ -63,7 +64,21 @@ class _AddEditEntryScreenState extends State<AddEditEntryScreen> {
   }
 
   Future<void> _saveEntry() async {
-    if (!_formKey.currentState!.validate()) {
+    if (_sourceTextController.text.trim().isEmpty ||
+        _targetTextController.text.trim().isEmpty) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Validation Error'),
+          content: const Text('Source text and target text are required'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
       return;
     }
 
@@ -103,101 +118,130 @@ class _AddEditEntryScreenState extends State<AddEditEntryScreen> {
     try {
       if (widget.entry == null) {
         await _db.createEntry(entry);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Entry created successfully')),
-          );
-        }
       } else {
         await _db.updateEntry(entry);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Entry updated successfully')),
-          );
-        }
       }
       if (mounted) {
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving entry: $e')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Error'),
+            content: Text('Error saving entry: $e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     }
+  }
+
+  void _showTypePicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 200,
+        color: CupertinoColors.systemBackground,
+        child: Column(
+          children: [
+            Container(
+              height: 44,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Text('Done'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                itemExtent: 32,
+                onSelectedItemChanged: (index) {
+                  setState(() {
+                    _selectedType = _entryTypes[index];
+                  });
+                },
+                children: _entryTypes
+                    .map((type) => Text(type[0].toUpperCase() + type.substring(1)))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.entry != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'Edit Entry' : 'Add Entry'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _saveEntry,
-          ),
-        ],
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(isEditing ? 'Edit Entry' : 'Add Entry'),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          child: const Text('Save'),
+          onPressed: _saveEntry,
+        ),
       ),
-      body: Form(
-        key: _formKey,
+      child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // Entry Type
-            DropdownButtonFormField<String>(
-              value: _selectedType,
-              decoration: const InputDecoration(
-                labelText: 'Type',
-                border: OutlineInputBorder(),
+            GestureDetector(
+              onTap: _showTypePicker,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Type', style: TextStyle(color: CupertinoColors.label)),
+                    Text(
+                      _selectedType[0].toUpperCase() + _selectedType.substring(1),
+                      style: const TextStyle(color: CupertinoColors.systemBlue),
+                    ),
+                  ],
+                ),
               ),
-              items: _entryTypes.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type[0].toUpperCase() + type.substring(1)),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedType = value!;
-                });
-              },
             ),
             const SizedBox(height: 16),
 
-            // Source Text (Required)
-            TextFormField(
+            // Source Text
+            CupertinoTextField(
               controller: _sourceTextController,
-              decoration: const InputDecoration(
-                labelText: 'Source Text *',
-                border: OutlineInputBorder(),
+              placeholder: 'Source Text *',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Source text is required';
-                }
-                return null;
-              },
               maxLines: 2,
             ),
             const SizedBox(height: 16),
 
-            // Target Text (Required)
-            TextFormField(
+            // Target Text
+            CupertinoTextField(
               controller: _targetTextController,
-              decoration: const InputDecoration(
-                labelText: 'Target Text *',
-                border: OutlineInputBorder(),
+              placeholder: 'Target Text *',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Target text is required';
-                }
-                return null;
-              },
               maxLines: 2,
             ),
             const SizedBox(height: 16),
@@ -206,23 +250,28 @@ class _AddEditEntryScreenState extends State<AddEditEntryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: CupertinoTextField(
                     controller: _sourceLanguageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Source Language',
-                      border: OutlineInputBorder(),
+                    placeholder: 'Source Language',
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey6,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                const Icon(Icons.arrow_forward),
-                const SizedBox(width: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(CupertinoIcons.arrow_right, size: 20),
+                ),
                 Expanded(
-                  child: TextFormField(
+                  child: CupertinoTextField(
                     controller: _targetLanguageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Target Language',
-                      border: OutlineInputBorder(),
+                    placeholder: 'Target Language',
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey6,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
@@ -231,142 +280,141 @@ class _AddEditEntryScreenState extends State<AddEditEntryScreen> {
             const SizedBox(height: 16),
 
             // Category
-            TextFormField(
+            CupertinoTextField(
               controller: _categoryController,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                border: OutlineInputBorder(),
-                helperText: 'e.g., Business, Medical, Technology',
+              placeholder: 'Category',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             const SizedBox(height: 16),
 
             // Tags
-            TextFormField(
+            CupertinoTextField(
               controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: 'Tags',
-                border: OutlineInputBorder(),
-                helperText: 'Comma-separated tags',
+              placeholder: 'Tags (comma-separated)',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             const SizedBox(height: 16),
 
             // Pronunciation
-            TextFormField(
+            CupertinoTextField(
               controller: _pronunciationController,
-              decoration: const InputDecoration(
-                labelText: 'Pronunciation',
-                border: OutlineInputBorder(),
+              placeholder: 'Pronunciation',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             const SizedBox(height: 16),
 
             // Context
-            TextFormField(
+            CupertinoTextField(
               controller: _contextController,
-              decoration: const InputDecoration(
-                labelText: 'Context / Usage Example',
-                border: OutlineInputBorder(),
+              placeholder: 'Context / Usage Example',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
               maxLines: 3,
             ),
             const SizedBox(height: 16),
 
             // Notes
-            TextFormField(
+            CupertinoTextField(
               controller: _notesController,
-              decoration: const InputDecoration(
-                labelText: 'Notes',
-                border: OutlineInputBorder(),
+              placeholder: 'Notes',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
               maxLines: 4,
             ),
             const SizedBox(height: 16),
 
-            // Difficulty Level
-            DropdownButtonFormField<int?>(
-              value: _difficultyLevel,
-              decoration: const InputDecoration(
-                labelText: 'Difficulty Level',
-                border: OutlineInputBorder(),
+            // Difficulty and Frequency
+            const Text(
+              'Difficulty Level',
+              style: TextStyle(
+                fontSize: 15,
+                color: CupertinoColors.secondaryLabel,
               ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Not set')),
-                ...List.generate(5, (i) => i + 1).map((level) {
-                  return DropdownMenuItem(
-                    value: level,
-                    child: Text('$level - ${'★' * level}'),
-                  );
-                }),
-              ],
-              onChanged: (value) {
+            ),
+            const SizedBox(height: 8),
+            CupertinoSegmentedControl<int?>(
+              children: const {
+                null: Text('None'),
+                1: Text('★'),
+                2: Text('★★'),
+                3: Text('★★★'),
+                4: Text('★★★★'),
+                5: Text('★★★★★'),
+              },
+              groupValue: _difficultyLevel,
+              onValueChanged: (value) {
                 setState(() {
                   _difficultyLevel = value;
                 });
               },
             ),
-            const SizedBox(height: 16),
-
-            // Frequency
-            DropdownButtonFormField<int?>(
-              value: _frequency,
-              decoration: const InputDecoration(
-                labelText: 'Usage Frequency',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Not set')),
-                const DropdownMenuItem(value: 1, child: Text('1 - Rare')),
-                const DropdownMenuItem(value: 2, child: Text('2 - Uncommon')),
-                const DropdownMenuItem(value: 3, child: Text('3 - Common')),
-                const DropdownMenuItem(value: 4, child: Text('4 - Frequent')),
-                const DropdownMenuItem(value: 5, child: Text('5 - Very Frequent')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _frequency = value;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // Source Reference
-            TextFormField(
+            CupertinoTextField(
               controller: _sourceReferenceController,
-              decoration: const InputDecoration(
-                labelText: 'Source Reference',
-                border: OutlineInputBorder(),
-                helperText: 'Book, article, or other source',
+              placeholder: 'Source Reference',
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             const SizedBox(height: 16),
 
             // Favorite Toggle
-            SwitchListTile(
-              value: _isFavorite,
-              onChanged: (value) {
-                setState(() {
-                  _isFavorite = value;
-                });
-              },
-              title: const Text('Mark as Favorite'),
-              secondary: Icon(
-                _isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: _isFavorite ? Colors.red : null,
+            Container(
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CupertinoListTile(
+                title: const Text('Mark as Favorite'),
+                leading: Icon(
+                  _isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                  color: _isFavorite ? CupertinoColors.systemRed : null,
+                ),
+                trailing: CupertinoSwitch(
+                  value: _isFavorite,
+                  onChanged: (value) {
+                    setState(() {
+                      _isFavorite = value;
+                    });
+                  },
+                  activeColor: CupertinoColors.systemGreen,
+                ),
               ),
             ),
             const SizedBox(height: 32),
 
             // Save Button
-            FilledButton.icon(
-              onPressed: _saveEntry,
-              icon: const Icon(Icons.save),
-              label: Text(isEditing ? 'Update Entry' : 'Create Entry'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.all(16),
+            SizedBox(
+              height: 44,
+              child: CupertinoButton.filled(
+                padding: EdgeInsets.zero,
+                onPressed: _saveEntry,
+                child: Text(isEditing ? 'Update Entry' : 'Create Entry'),
               ),
             ),
+            const SizedBox(height: 32),
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/entry.dart';
@@ -54,7 +55,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   Future<void> _editEntry() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
+      CupertinoPageRoute(
         builder: (context) => AddEditEntryScreen(entry: _entry),
       ),
     );
@@ -71,20 +72,20 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   }
 
   Future<void> _deleteEntry() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showCupertinoDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => CupertinoAlertDialog(
         title: const Text('Delete Entry'),
         content: Text('Delete "${_entry.sourceText}"? This cannot be undone.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
+          CupertinoDialogAction(
             child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context, false),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             child: const Text('Delete'),
+            onPressed: () => Navigator.pop(context, true),
           ),
         ],
       ),
@@ -94,228 +95,325 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       await _db.deleteEntry(_entry.id);
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entry deleted')),
-        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Entry Details'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _entry.isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: _entry.isFavorite ? Colors.red : null,
-            ),
-            onPressed: _toggleFavorite,
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _editEntry,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: _deleteEntry,
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Type Badge
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(16),
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Entry Details'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minSize: 44,
+              onPressed: _toggleFavorite,
+              child: Icon(
+                _entry.isFavorite
+                    ? CupertinoIcons.heart_fill
+                    : CupertinoIcons.heart,
+                color: _entry.isFavorite ? CupertinoColors.systemRed : null,
               ),
-              child: Text(
-                _entry.type.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minSize: 44,
+              onPressed: _editEntry,
+              child: const Icon(CupertinoIcons.pencil),
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minSize: 44,
+              onPressed: _deleteEntry,
+              child: const Icon(CupertinoIcons.delete),
+            ),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Type Badge
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBlue,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _entry.type.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: CupertinoColors.white,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Source Text
-          Card(
-            child: Padding(
+            // Source Text
+            Container(
               padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _entry.sourceLanguage,
-                    style: Theme.of(context).textTheme.labelMedium,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.secondaryLabel,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _entry.sourceText,
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: CupertinoColors.label,
+                    ),
                   ),
                   if (_entry.pronunciation != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       '[${_entry.pronunciation}]',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontStyle: FontStyle.italic,
-                          ),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontStyle: FontStyle.italic,
+                        color: CupertinoColors.secondaryLabel,
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          // Arrow
-          const Center(
-            child: Icon(Icons.arrow_downward, size: 32),
-          ),
-          const SizedBox(height: 8),
+            // Arrow
+            const Center(
+              child: Icon(CupertinoIcons.arrow_down, size: 32),
+            ),
+            const SizedBox(height: 8),
 
-          // Target Text
-          Card(
-            child: Padding(
+            // Target Text
+            Container(
               padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _entry.targetLanguage,
-                    style: Theme.of(context).textTheme.labelMedium,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.secondaryLabel,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _entry.targetText,
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: CupertinoColors.label,
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Category and Tags
-          _buildInfoSection(
-            'Category & Tags',
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(
-                      label: Text(_entry.category),
-                      backgroundColor:
-                          Theme.of(context).colorScheme.secondaryContainer,
-                    ),
-                    ..._entry.tags.map((tag) => Chip(
-                          label: Text(tag),
-                          backgroundColor:
-                              Theme.of(context).colorScheme.tertiaryContainer,
-                        )),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Context
-          if (_entry.context != null)
+            // Category and Tags
             _buildInfoSection(
-              'Context / Usage',
-              Text(_entry.context!),
-            ),
-
-          // Notes
-          if (_entry.notes != null)
-            _buildInfoSection(
-              'Notes',
-              Text(_entry.notes!),
-            ),
-
-          // Difficulty and Frequency
-          if (_entry.difficultyLevel != null || _entry.frequency != null)
-            _buildInfoSection(
-              'Metrics',
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              'Category & Tags',
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  if (_entry.difficultyLevel != null)
-                    Row(
-                      children: [
-                        const Text('Difficulty: '),
-                        Text('${'★' * _entry.difficultyLevel!}'),
-                      ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey5,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  if (_entry.frequency != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Text('Frequency: '),
-                        Text(_getFrequencyLabel(_entry.frequency!)),
-                      ],
-                    ),
-                  ],
+                    child: Text(_entry.category),
+                  ),
+                  ..._entry.tags.map((tag) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemGrey5,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(tag),
+                      )),
                 ],
               ),
             ),
 
-          // Source Reference
-          if (_entry.sourceReference != null)
-            _buildInfoSection(
-              'Source Reference',
-              Text(_entry.sourceReference!),
-            ),
+            // Context
+            if (_entry.context != null)
+              _buildInfoSection(
+                'Context / Usage',
+                Text(
+                  _entry.context!,
+                  style: const TextStyle(color: CupertinoColors.label),
+                ),
+              ),
 
-          // Relationships
-          _buildInfoSection(
-            'Relationships',
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _relationships.isEmpty
-                    ? const Text('No relationships yet')
-                    : Column(
-                        children: _relationships.map((rel) {
-                          return ListTile(
-                            leading: const Icon(Icons.link),
-                            title: Text(RelationshipType.getDisplayName(
-                                rel.relationshipType)),
-                            subtitle: Text('Entry ID: ${rel.toEntryId}'),
-                          );
-                        }).toList(),
+            // Notes
+            if (_entry.notes != null)
+              _buildInfoSection(
+                'Notes',
+                Text(
+                  _entry.notes!,
+                  style: const TextStyle(color: CupertinoColors.label),
+                ),
+              ),
+
+            // Difficulty and Frequency
+            if (_entry.difficultyLevel != null || _entry.frequency != null)
+              _buildInfoSection(
+                'Metrics',
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_entry.difficultyLevel != null)
+                      Row(
+                        children: [
+                          const Text(
+                            'Difficulty: ',
+                            style: TextStyle(color: CupertinoColors.label),
+                          ),
+                          Text(
+                            '${'★' * _entry.difficultyLevel!}',
+                            style: const TextStyle(color: CupertinoColors.systemYellow),
+                          ),
+                        ],
                       ),
-          ),
+                    if (_entry.frequency != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text(
+                            'Frequency: ',
+                            style: TextStyle(color: CupertinoColors.label),
+                          ),
+                          Text(
+                            _getFrequencyLabel(_entry.frequency!),
+                            style: const TextStyle(color: CupertinoColors.label),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
 
-          // Metadata
-          _buildInfoSection(
-            'Metadata',
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Created: ${DateFormat.yMMMd().add_jm().format(_entry.createdAt)}'),
-                const SizedBox(height: 4),
-                Text('Updated: ${DateFormat.yMMMd().add_jm().format(_entry.updatedAt)}'),
-                const SizedBox(height: 4),
-                Text('ID: ${_entry.id}',
-                    style: Theme.of(context).textTheme.bodySmall),
-              ],
+            // Source Reference
+            if (_entry.sourceReference != null)
+              _buildInfoSection(
+                'Source Reference',
+                Text(
+                  _entry.sourceReference!,
+                  style: const TextStyle(color: CupertinoColors.label),
+                ),
+              ),
+
+            // Relationships
+            _buildInfoSection(
+              'Relationships',
+              _isLoading
+                  ? const Center(child: CupertinoActivityIndicator())
+                  : _relationships.isEmpty
+                      ? const Text(
+                          'No relationships yet',
+                          style: TextStyle(color: CupertinoColors.secondaryLabel),
+                        )
+                      : Column(
+                          children: _relationships.map((rel) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: CupertinoColors.systemGrey6,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(CupertinoIcons.link, size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          RelationshipType.getDisplayName(
+                                              rel.relationshipType),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: CupertinoColors.label,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Entry ID: ${rel.toEntryId}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: CupertinoColors.secondaryLabel,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
             ),
-          ),
-        ],
+
+            // Metadata
+            _buildInfoSection(
+              'Metadata',
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Created: ${DateFormat.yMMMd().add_jm().format(_entry.createdAt)}',
+                    style: const TextStyle(color: CupertinoColors.label),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Updated: ${DateFormat.yMMMd().add_jm().format(_entry.updatedAt)}',
+                    style: const TextStyle(color: CupertinoColors.label),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'ID: ${_entry.id}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.tertiaryLabel,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -326,9 +424,11 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: CupertinoColors.label,
+          ),
         ),
         const SizedBox(height: 8),
         content,

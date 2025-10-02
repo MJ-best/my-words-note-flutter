@@ -27,6 +27,9 @@ dependencies:
   # CSV/JSON Processing
   csv: ^6.0.0
 
+  # Graph Visualization
+  graphview: ^1.2.0
+
   # UI
   cupertino_icons: ^1.0.6
   intl: ^0.19.0
