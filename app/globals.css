@@ -120,7 +120,7 @@ a { color: var(--accent); text-decoration: none; }
 }
 .brand { font-weight: 800; letter-spacing: -0.02em; font-size: 17px; display: flex; align-items: center; gap: 8px; color: var(--text); }
 .brand .penguin { width: 22px; height: 32px; color: var(--text); flex: 0 0 auto; }
-.mark { width: 220px; max-width: 70%; height: auto; color: var(--text); margin: 0 auto; display: block; }
+.mark { width: 76px; height: auto; color: var(--text); margin: 0 auto; display: block; }
 .search { flex: 1; min-width: 180px; max-width: 420px; position: relative; }
 .search .input { padding-left: 34px; }
 .search .ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-3); }
@@ -232,7 +232,7 @@ a { color: var(--accent); text-decoration: none; }
   min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .auth .card { width: 100%; max-width: 400px; padding: 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
-.auth .mark { width: 180px; }
+.auth .mark { width: 64px; }
 .auth h1 { margin: 0; font-size: 24px; }
 .error { color: var(--danger); font-size: 13.5px; }
 .ok { color: #2e9e6b; font-size: 13.5px; }
