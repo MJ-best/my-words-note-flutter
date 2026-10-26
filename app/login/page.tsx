@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { getFirebaseAuth } from "@/lib/firebase";
+import Brand, { PenguinMark } from "@/components/Brand";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,9 +34,8 @@ export default function LoginPage() {
   return (
     <main className="auth">
       <form className="card" onSubmit={submit}>
-        <div className="brand">
-          <span className="dot" /> Nuance Graph
-        </div>
+        <PenguinMark />
+        <Brand />
         <h1>{mode === "signin" ? "로그인" : "계정 만들기"}</h1>
         <p className="muted small">
           이메일 인증 없이 아무 이메일 형식과 비밀번호(6자 이상)로 계정을 만들 수 있습니다. 데이터는

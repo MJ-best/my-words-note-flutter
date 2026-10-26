@@ -76,7 +76,7 @@ export default function GraphCanvas({
   const draggingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const animRef = useRef<number | null>(null);
-  const themeRef = useRef({ text: "#15181e", surface: "#ffffff", accent: "#2f6fed", bg: "#f6f7f9", muted: "#8b93a1" });
+  const themeRef = useRef({ text: "#1f2a44", surface: "#fffcf4", accent: "#e0a63a", bg: "#f4efe2", muted: "#8a90a3" });
   const onSelectRef = useRef(onSelect);
   const onDblRef = useRef(onBackgroundDoubleClick);
   onSelectRef.current = onSelect;
@@ -204,8 +204,8 @@ export default function GraphCanvas({
 
       if (n.id === sel) {
         ctx.fillStyle = theme.accent;
-        ctx.globalAlpha = 0.25;
-        roundRect(ctx, x - 6, y - 6, n.w + 12, n.h + 12, (n.h + 12) / 2);
+        ctx.globalAlpha = 0.9;
+        roundRect(ctx, x - 5, y - 5, n.w + 10, n.h + 10, (n.h + 10) / 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -303,7 +303,7 @@ export default function GraphCanvas({
       themeRef.current = {
         text: cs.getPropertyValue("--text").trim() || "#15181e",
         surface: cs.getPropertyValue("--surface").trim() || "#fff",
-        accent: cs.getPropertyValue("--accent").trim() || "#2f6fed",
+        accent: cs.getPropertyValue("--highlight").trim() || "#e0a63a",
         bg: cs.getPropertyValue("--bg").trim() || "#f6f7f9",
         muted: cs.getPropertyValue("--text-3").trim() || "#8b93a1",
       };

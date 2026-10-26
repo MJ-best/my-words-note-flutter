@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import Workspace from "./Workspace";
+import Brand from "./Brand";
 
 export default function AuthGate({ aiEnabled }: { aiEnabled: boolean }) {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export default function AuthGate({ aiEnabled }: { aiEnabled: boolean }) {
     return (
       <main className="auth">
         <div className="card" style={{ textAlign: "center" }}>
-          <div className="brand" style={{ justifyContent: "center" }}><span className="dot" /> Nuance Graph</div>
+          <div style={{ display: "flex", justifyContent: "center" }}><Brand /></div>
           <p className="muted" style={{ margin: 0 }}>{user === undefined ? "로그인 상태 확인 중…" : "로그인 화면으로 이동합니다…"}</p>
         </div>
       </main>

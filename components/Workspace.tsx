@@ -14,6 +14,7 @@ import NodeForm from "./NodeForm";
 import EdgeForm from "./EdgeForm";
 import PackModal from "./PackModal";
 import ImportCsvModal from "./ImportCsvModal";
+import Brand, { PenguinMark } from "./Brand";
 
 interface Props {
   userId: string;
@@ -173,7 +174,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><span className="dot" />Nuance Graph</div>
+        <Brand />
 
         <div className="search">
           <span className="ico">⌕</span>
@@ -283,6 +284,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
           {!loading && !error && nodes.length === 0 && (
             <div className="empty">
               <div className="card">
+                <PenguinMark />
                 <h1>표현 사이의 관계를 그려 보세요</h1>
                 <p className="muted" style={{ margin: 0 }}>
                   단어를 외우는 대신, "사랑해"가 일본어에서는 愛してる보다 好き에 더 가깝다는 식의 관계와 뉘앙스를 선으로 잇고 가중치로 조정합니다.
