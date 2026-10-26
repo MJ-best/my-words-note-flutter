@@ -190,6 +190,13 @@ a { color: var(--accent); text-decoration: none; }
 .suggest-item .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .suggest-item .head b { font-size: 15px; }
 
+/* ---------- 토스트 ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60;
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px;
+  box-shadow: var(--shadow); font-size: 14px; max-width: calc(100% - 32px); cursor: pointer;
+}
+
 /* ---------- 로그인 ---------- */
 .auth {
   min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px;

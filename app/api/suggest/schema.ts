@@ -20,6 +20,7 @@ export const SuggestRequestSchema = z.object({
         relation: z.enum(["equivalent", "similar", "broader", "narrower", "contrast", "collocation"]),
         weight: z.number().min(0).max(1),
         note: nullableStr,
+        situation: nullableStr,
       }),
     )
     .max(60),

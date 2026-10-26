@@ -12,6 +12,8 @@ import GraphCanvas from "./GraphCanvas";
 import NodePanel from "./NodePanel";
 import NodeForm from "./NodeForm";
 import EdgeForm from "./EdgeForm";
+import PackModal from "./PackModal";
+import ImportCsvModal from "./ImportCsvModal";
 
 interface Props {
   userId: string;
@@ -34,6 +36,15 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
   const [nodeForm, setNodeForm] = useState<{ mode: "new" } | { mode: "edit"; node: GraphNode } | null>(null);
   const [edgeForm, setEdgeForm] = useState<GraphNode | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [packOpen, setPackOpen] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +52,10 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
   const knownDomains = useMemo(
     () => Array.from(new Set(nodes.map((n) => n.domain).filter((d): d is string => Boolean(d)))).sort(),
     [nodes],
+  );
+  const knownSituations = useMemo(
+    () => Array.from(new Set(edges.map((e) => e.situation).filter((d): d is string => Boolean(d)))).sort(),
+    [edges],
   );
 
   const visibleNodes = useMemo(
@@ -102,7 +117,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
     setNodeForm(null);
   }
 
-  async function handleEdgeSubmit(input: { target: { id: string } | { text: string; lang: string }; relation: Relation; weight: number; note: string }) {
+  async function handleEdgeSubmit(input: { target: { id: string } | { text: string; lang: string }; relation: Relation; weight: number; note: string; situation: string }) {
     if (!edgeForm) return;
     let targetId: string;
     if ("id" in input.target) targetId = input.target.id;
@@ -112,7 +127,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
       targetId = created.id;
       if (langFilter.size && !langFilter.has(created.lang)) setLangFilter(new Set());
     }
-    await api.addEdge({ source_id: edgeForm.id, target_id: targetId, relation: input.relation, weight: input.weight, note: input.note });
+    await api.addEdge({ source_id: edgeForm.id, target_id: targetId, relation: input.relation, weight: input.weight, note: input.note, situation: input.situation });
     setEdgeForm(null);
   }
 
@@ -134,7 +149,8 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
     try {
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error("nodes/edges 배열이 없는 파일입니다.");
-      await api.importGraph(data);
+      const r = await api.importGraph(data, { dedupe: true });
+      showToast(`표현 ${r.nodes}개, 연결 ${r.edges}개, 예문 ${r.examples}개를 가져왔습니다.`);
     } catch (err) {
       alert(`가져오기 실패: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -216,9 +232,11 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
             <div className="search-results" style={{ left: "auto", right: 0, width: 260 }} onMouseLeave={() => setMenuOpen(false)}>
               <div className="hint" style={{ padding: "6px 10px" }}>{email}</div>
               <button onClick={() => { setFitTick((t) => t + 1); setMenuOpen(false); }}>전체 보기</button>
+              <button onClick={() => { setPackOpen(true); setMenuOpen(false); }}>스타터 팩 추가…</button>
+              <button onClick={() => { setCsvOpen(true); setMenuOpen(false); }}>CSV 용어집 가져오기…</button>
               <button onClick={downloadExport}>JSON으로 내보내기</button>
               <button onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
-              <button onClick={async () => { if (confirm("예시 그래프(감정·의료·법률)를 내 그래프에 추가할까요?")) { await api.importGraph(SEED); setFitTick((t) => t + 1); } setMenuOpen(false); }}>예시 그래프 추가</button>
+              <button onClick={async () => { if (confirm("예시 그래프(감정·의료·법률)를 내 그래프에 추가할까요?")) { await api.importGraph(SEED, { dedupe: true }); setFitTick((t) => t + 1); } setMenuOpen(false); }}>예시 그래프 추가</button>
               <button onClick={async () => { if (confirm("정말 내 그래프의 모든 표현과 연결을 삭제할까요? 되돌릴 수 없습니다.")) await api.clearAll(); setMenuOpen(false); }} style={{ color: "var(--danger)" }}>모두 삭제</button>
               <button onClick={signOut}>로그아웃</button>
             </div>
@@ -270,9 +288,12 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
                   단어를 외우는 대신, "사랑해"가 일본어에서는 愛してる보다 好き에 더 가깝다는 식의 관계와 뉘앙스를 선으로 잇고 가중치로 조정합니다.
                 </p>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                  <button className="btn primary" onClick={async () => { await api.importGraph(SEED); setFitTick((t) => t + 1); }}>예시 그래프로 시작</button>
-                  <button className="btn" onClick={() => setNodeForm({ mode: "new" })}>빈 그래프에서 시작</button>
+                  <button className="btn primary" onClick={() => setPackOpen(true)}>스타터 팩으로 시작</button>
+                  <button className="btn" onClick={async () => { await api.importGraph(SEED); setFitTick((t) => t + 1); }}>작은 예시 그래프</button>
+                  <button className="btn" onClick={() => setCsvOpen(true)}>내 용어집 CSV 가져오기</button>
+                  <button className="btn ghost" onClick={() => setNodeForm({ mode: "new" })}>빈 그래프에서 시작</button>
                 </div>
+                <p className="hint" style={{ margin: 0 }}>스타터 팩: 의료 통역·법률 통역 (한국어·영어·일본어·러시아어)</p>
               </div>
             </div>
           )}
@@ -323,11 +344,31 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
           onClose={() => setNodeForm(null)}
         />
       )}
+      {packOpen && (
+        <PackModal
+          api={api}
+          onDone={(msg) => { setPackOpen(false); showToast(msg); setFitTick((t) => t + 1); }}
+          onClose={() => setPackOpen(false)}
+        />
+      )}
+      {csvOpen && (
+        <ImportCsvModal
+          api={api}
+          knownLangs={knownLangs.length ? knownLangs : ["ko", "en", "ja", "ru"]}
+          knownDomains={knownDomains}
+          onDone={(msg) => { setCsvOpen(false); showToast(msg); setFitTick((t) => t + 1); }}
+          onClose={() => setCsvOpen(false)}
+        />
+      )}
+      {toast && (
+        <div className="toast" role="status" onClick={() => setToast(null)}>{toast}</div>
+      )}
       {edgeForm && (
         <EdgeForm
           source={edgeForm}
           nodes={nodes}
-          knownLangs={knownLangs.length ? knownLangs : ["ko", "en", "ja"]}
+          knownLangs={knownLangs.length ? knownLangs : ["ko", "en", "ja", "ru"]}
+          knownSituations={knownSituations}
           onSubmit={handleEdgeSubmit}
           onClose={() => setEdgeForm(null)}
         />

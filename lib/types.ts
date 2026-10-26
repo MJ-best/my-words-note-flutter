@@ -30,6 +30,7 @@ export interface GraphEdge {
   relation: Relation;
   weight: number; // 0..1
   note: string | null;
+  situation: string | null; // 이 대응이 적합한 상황 (환자 설명, 법정, 차트 ...)
   uses: number;
   created_at: string;
   updated_at: string;
@@ -50,7 +51,7 @@ export type NodeInput = Pick<GraphNode, "text" | "lang"> &
   Partial<Pick<GraphNode, "kind" | "domain" | "register" | "note" | "preferred">>;
 
 export type EdgeInput = Pick<GraphEdge, "source_id" | "target_id" | "relation"> &
-  Partial<Pick<GraphEdge, "weight" | "note">>;
+  Partial<Pick<GraphEdge, "weight" | "note" | "situation">>;
 
 export type ExampleInput = Pick<Example, "node_id" | "text"> &
   Partial<Pick<Example, "translation" | "situation" | "source">>;
@@ -154,6 +155,24 @@ export const REGISTERS: { value: string; label: string }[] = [
   { value: "legal", label: "법률 문어" },
   { value: "written", label: "문어체" },
   { value: "spoken", label: "구어체" },
+];
+
+/** 자주 쓰는 상황 태그. 자유 입력도 가능하고, 그래프에 있는 태그가 datalist로 함께 제시된다. */
+export const SITUATIONS: string[] = [
+  "환자 설명",
+  "의료진 간",
+  "차트·문서",
+  "진료실 문진",
+  "복약 지도",
+  "수술·시술 동의",
+  "응급",
+  "법정",
+  "경찰 조사",
+  "변호인 상담",
+  "계약서·서면",
+  "행정 민원",
+  "일상 대화",
+  "격식 자리",
 ];
 
 export function registerLabel(value: string | null): string {

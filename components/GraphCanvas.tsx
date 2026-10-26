@@ -167,7 +167,8 @@ export default function GraphCanvas({
       if (touches && t.k > 0.45) {
         const mx = (s.x + d.x) / 2;
         const my = (s.y + d.y) / 2;
-        const label = `${rel.short} ${pct(l.edge.weight)}`;
+        const sit = l.edge.situation ? ` · ${l.edge.situation.length > 7 ? l.edge.situation.slice(0, 6) + "…" : l.edge.situation}` : "";
+        const label = `${rel.short}${sit} ${pct(l.edge.weight)}`;
         ctx.font = LABEL_FONT;
         const tw = ctx.measureText(label).width;
         // 두 노드 사이가 좁으면 라벨이 노드를 가리므로 생략

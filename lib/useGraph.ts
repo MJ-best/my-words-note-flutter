@@ -22,6 +22,12 @@ import type {
   NodeInput,
 } from "@/lib/types";
 
+export interface ImportData {
+  nodes: Array<Partial<GraphNode> & { id: string; text: string; lang: string }>;
+  edges: Array<Partial<GraphEdge> & { source_id: string; target_id: string; relation: GraphEdge["relation"] }>;
+  examples?: Array<Partial<Example> & { node_id: string; text: string }>;
+}
+
 export interface GraphExport {
   version: 2;
   exported_at: string;
@@ -80,7 +86,14 @@ export function useGraph(userId: string) {
       const [n, e, x] = await Promise.all([getDocs(cols.nodes), getDocs(cols.edges), getDocs(cols.examples)]);
       const byCreated = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
       setNodes(n.docs.map((d) => ({ ...(d.data() as Omit<GraphNode, "id">), id: d.id })).sort(byCreated));
-      setEdges(e.docs.map((d) => ({ ...(d.data() as Omit<GraphEdge, "id">), id: d.id })).sort(byCreated));
+      setEdges(
+        e.docs
+          .map((d) => {
+            const data = d.data() as Omit<GraphEdge, "id">;
+            return { ...data, situation: data.situation ?? null, id: d.id };
+          })
+          .sort(byCreated),
+      );
       setExamples(x.docs.map((d) => ({ ...(d.data() as Omit<Example, "id">), id: d.id })).sort(byCreated));
     } catch (err) {
       fail(err);
@@ -176,6 +189,7 @@ export function useGraph(userId: string) {
         relation: input.relation,
         weight: Math.min(1, Math.max(0, input.weight ?? 0.5)),
         note: input.note?.trim() || null,
+        situation: input.situation?.trim() || null,
         uses: 0,
         created_at: ts,
         updated_at: ts,
@@ -193,7 +207,7 @@ export function useGraph(userId: string) {
   );
 
   const updateEdge = useCallback(
-    async (id: string, patch: Partial<Pick<GraphEdge, "relation" | "weight" | "note" | "uses">>) => {
+    async (id: string, patch: Partial<Pick<GraphEdge, "relation" | "weight" | "note" | "situation" | "uses">>) => {
       setEdges((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
       try {
         await updateDoc(doc(cols.edges, id), { ...patch, updated_at: now() });
@@ -293,21 +307,38 @@ export function useGraph(userId: string) {
     return { version: 2, exported_at: now(), nodes, edges, examples };
   }, [nodes, edges, examples]);
 
-  /** 외부 JSON(이 앱의 export 또는 시드 데이터)을 새 id로 복사해 넣는다. */
+  /**
+   * 외부 JSON(이 앱의 export, 시드, 스타터 팩, CSV 변환 결과)을 새 id로 복사해 넣는다.
+   * dedupe=true 면 같은 언어·같은 글자의 표현은 기존 노드를 재사용하고, 완전히 같은 연결·예문은 건너뛴다.
+   */
   const importGraph = useCallback(
-    async (data: {
-      nodes: Array<Partial<GraphNode> & { id: string; text: string; lang: string }>;
-      edges: Array<Partial<GraphEdge> & { source_id: string; target_id: string; relation: GraphEdge["relation"] }>;
-      examples?: Array<Partial<Example> & { node_id: string; text: string }>;
-    }) => {
+    async (
+      data: ImportData,
+      options: { dedupe?: boolean } = {},
+    ): Promise<{ nodes: number; edges: number; examples: number }> => {
       setError(null);
       const ts = now();
       const idMap = new Map<string, string>();
       const writes: Array<{ col: CollectionReference<DocumentData>; id: string; data: DocumentData }> = [];
+      const counts = { nodes: 0, edges: 0, examples: 0 };
+      const dedupe = options.dedupe ?? false;
+      const key = (text: string, lang: string) => `${lang}\u0000${text.trim().toLowerCase()}`;
+      const existingNodes = new Map(nodes.map((n) => [key(n.text, n.lang), n.id]));
+      const existingEdges = new Set(edges.map((e) => `${e.source_id}|${e.target_id}|${e.relation}|${e.situation ?? ""}`));
+      const existingExamples = new Set(examples.map((x) => `${x.node_id}|${x.text.trim()}`));
 
       for (const n of data.nodes) {
+        if (dedupe) {
+          const hit = existingNodes.get(key(n.text, n.lang));
+          if (hit) {
+            idMap.set(n.id, hit);
+            continue;
+          }
+        }
         const id = doc(cols.nodes).id;
         idMap.set(n.id, id);
+        existingNodes.set(key(n.text, n.lang), id);
+        counts.nodes++;
         writes.push({
           col: cols.nodes,
           id,
@@ -326,17 +357,25 @@ export function useGraph(userId: string) {
         });
       }
       for (const e of data.edges) {
-        if (!idMap.has(e.source_id) || !idMap.has(e.target_id) || e.source_id === e.target_id) continue;
+        if (!idMap.has(e.source_id) || !idMap.has(e.target_id)) continue;
+        const sid = idMap.get(e.source_id)!, tid = idMap.get(e.target_id)!;
+        if (sid === tid) continue;
+        const sig = `${sid}|${tid}|${e.relation}|${e.situation ?? ""}`;
+        const sigRev = `${tid}|${sid}|${e.relation}|${e.situation ?? ""}`;
+        if (dedupe && (existingEdges.has(sig) || existingEdges.has(sigRev))) continue;
+        existingEdges.add(sig);
+        counts.edges++;
         writes.push({
           col: cols.edges,
           id: doc(cols.edges).id,
           data: {
             user_id: userId,
-            source_id: idMap.get(e.source_id)!,
-            target_id: idMap.get(e.target_id)!,
+            source_id: sid,
+            target_id: tid,
             relation: e.relation,
             weight: e.weight ?? 0.5,
             note: e.note ?? null,
+            situation: e.situation ?? null,
             uses: e.uses ?? 0,
             created_at: ts,
             updated_at: ts,
@@ -345,12 +384,17 @@ export function useGraph(userId: string) {
       }
       for (const x of data.examples ?? []) {
         if (!idMap.has(x.node_id)) continue;
+        const nid = idMap.get(x.node_id)!;
+        const sig = `${nid}|${x.text.trim()}`;
+        if (dedupe && existingExamples.has(sig)) continue;
+        existingExamples.add(sig);
+        counts.examples++;
         writes.push({
           col: cols.examples,
           id: doc(cols.examples).id,
           data: {
             user_id: userId,
-            node_id: idMap.get(x.node_id)!,
+            node_id: nid,
             text: x.text,
             translation: x.translation ?? null,
             situation: x.situation ?? null,
@@ -370,8 +414,9 @@ export function useGraph(userId: string) {
         fail(err);
       }
       await load();
+      return counts;
     },
-    [db, cols, userId, fail, load],
+    [db, cols, userId, nodes, edges, examples, fail, load],
   );
 
   const clearAll = useCallback(async () => {

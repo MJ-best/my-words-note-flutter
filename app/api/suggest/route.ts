@@ -16,6 +16,7 @@ const SuggestionSchema = z.object({
   relation: z.enum(["equivalent", "similar", "broader", "narrower", "contrast", "collocation"]),
   weight: z.number().min(0).max(1),
   note: z.string(),
+  situation: z.string().nullable(),
   register: z.enum(["formal", "casual", "clinical", "legal", "written", "spoken"]).nullable(),
   example: z
     .object({ text: z.string(), translation: z.string(), situation: z.string() })
@@ -38,6 +39,7 @@ const OUTPUT_JSON_SCHEMA = {
           relation: { type: "string", enum: ["equivalent", "similar", "broader", "narrower", "contrast", "collocation"] },
           weight: { type: "number", description: "0..1 how natural this mapping is in the given domain/register" },
           note: { type: "string", description: "Korean explanation of nuance: when to use, who says it, what differs" },
+          situation: { type: ["string", "null"], description: "Korean situation tag where this mapping fits, e.g. 환자 설명, 의료진 간, 법정, 계약서·서면; null if general" },
           register: { type: ["string", "null"], enum: ["formal", "casual", "clinical", "legal", "written", "spoken", null] },
           example: {
             type: ["object", "null"],
@@ -50,7 +52,7 @@ const OUTPUT_JSON_SCHEMA = {
             additionalProperties: false,
           },
         },
-        required: ["text", "lang", "kind", "relation", "weight", "note", "register", "example"],
+        required: ["text", "lang", "kind", "relation", "weight", "note", "situation", "register", "example"],
         additionalProperties: false,
       },
     },
@@ -74,6 +76,8 @@ Given one expression with its context and existing connections, propose up to 6 
 - "similar" expressions in the same language when the nuance difference is worth recording,
 - "contrast" when there is a classic confusion risk,
 - occasionally "broader"/"narrower"/"collocation" when genuinely useful.
+When the best target depends on the situation (patient vs. clinician, courtroom vs. consultation, document vs. speech),
+return separate suggestions with a short Korean "situation" tag each, instead of one averaged weight.
 Do not repeat connections that already exist. Keep weights honest and differentiated. Write "note" in Korean,
 concrete and short (1-2 sentences), explaining when/why. Include a short realistic example sentence with translation
 and situation when it helps. Use ISO 639-1 codes for "lang".`;
@@ -105,7 +109,7 @@ export async function POST(req: Request) {
   const existing = connections
     .map(
       (c) =>
-        `- [${RELATIONS[c.relation].label}] ${c.text} (${langLabel(c.lang)}, ${c.register ?? "register unspecified"}) weight ${c.weight}${c.note ? ` — ${c.note}` : ""}`,
+        `- [${RELATIONS[c.relation].label}${c.situation ? ` / ${c.situation}` : ""}] ${c.text} (${langLabel(c.lang)}, ${c.register ?? "register unspecified"}) weight ${c.weight}${c.note ? ` — ${c.note}` : ""}`,
     )
     .join("\n");
   const examples = exampleRows
