@@ -14,6 +14,7 @@
 | **표현(노드)** | 한 언어의 단어·구·문장. 언어, 분야(의료/법률/일상), 격식, 내 뉘앙스 메모, ★선호 표시 |
 | **관계(엣지)** | 두 표현 사이의 관계. `대응 번역`, `비슷하지만 뉘앙스 다름`, `상위/하위 개념`, `혼동 주의`, `함께 쓰임` |
 | **가중치** | 0~100%. 사전의 정답이 아니라 *이 상황에서 내가 느끼는 적합도*. 슬라이더로 언제든 조정 |
+| **상황** | 연결마다 붙는 태그(환자 설명, 의료진 간, 법정, 계약서·서면 …). 같은 두 표현이라도 상황별로 연결을 따로 두면 "환자 앞에서는 painkiller 90%, 차트에서는 analgesic 85%"가 됩니다. 패널에서 상황을 고르면 언어별 1순위가 바뀝니다 |
 | **사용 +1** | 실제 통역·번역에서 그 대응을 썼을 때 누르면 횟수가 쌓입니다. 내가 실제로 고르는 대응이 데이터로 남습니다 |
 | **예문** | 표현이 실제로 쓰인 문장, 내가 옮긴 문장, 상황(진료실, 법정 증인 신문 …) |
 | **AI 제안(선택)** | 선택한 표현을 기준으로 다른 언어의 대응 표현과 뉘앙스 차이를 제안받고, 마음에 드는 것만 그래프에 추가 |
@@ -65,12 +66,18 @@ npx firebase-tools emulators:start --only auth,firestore --project demo-nuance
 
 배포 주소에서 로그인이 막히면 Firebase **Authentication → 설정 → 승인된 도메인** 에 Vercel 도메인(`xxx.vercel.app`)을 추가하세요. 이메일/비밀번호 로그인은 보통 추가 없이도 동작합니다.
 
+## 데이터 채우기
+
+- **스타터 팩** (메뉴 ☰ → 스타터 팩 추가): 의료 통역·법률 통역 팩이 들어 있습니다. 한국어·영어·일본어·러시아어 중 원하는 언어만 골라 넣을 수 있고, 가중치·상황·메모는 초안이니 패널에서 고치면 됩니다. 이미 있는 표현은 중복 생성하지 않습니다. 팩 내용은 `lib/packs/*.ts`에 있어 직접 고치거나 새 팩을 추가할 수 있습니다.
+- **CSV 용어집 가져오기** (메뉴 ☰ → CSV 용어집 가져오기): Trados, memoQ, 엑셀에서 내보낸 용어집을 넣습니다. `source, target` 두 열만 있으면 되고 `source_lang, target_lang, domain, situation, weight, note, register, relation, example, example_translation` 열은 있으면 함께 읽습니다. 한국어 열 이름(원문, 번역, 분야, 상황, 가중치, 메모, 예문)도 인식하며, 쉼표·탭·세미콜론 구분을 자동 감지합니다. 모달의 "샘플 CSV 받기"로 양식을 받을 수 있습니다.
+- **JSON 가져오기/내보내기**: 이 앱의 백업 형식입니다.
+
 ## 사용법
 
-- 처음 들어가면 **예시 그래프로 시작**을 눌러 감정·의료·법률 예시를 넣어 보세요. 메뉴(☰)에서 언제든 추가하거나 모두 지울 수 있습니다.
+- 처음 들어가면 **스타터 팩으로 시작** 또는 **작은 예시 그래프**를 눌러 보세요. 메뉴(☰)에서 언제든 추가하거나 모두 지울 수 있습니다.
 - `+ 표현` 또는 빈 캔버스 **더블클릭**으로 표현을 추가합니다. 단축키: `n` 새 표현, `/` 검색, `Esc` 닫기.
 - 노드를 클릭 → 오른쪽 패널에서 `+ 연결`로 다른 표현과 잇습니다. 상대 표현이 아직 없으면 그 자리에서 만들어집니다.
-- 연결마다 **슬라이더로 적합도**를 조정하고, **뉘앙스 메모**를 클릭해 "언제 이걸 쓰는지"를 적습니다.
+- 연결마다 **슬라이더로 적합도**를 조정하고, **뉘앙스 메모**를 클릭해 상황 태그와 "언제 이걸 쓰는지"를 적습니다.
 - 상단의 **언어 칩**으로 특정 언어만 보거나 숨기고, **분야** 드롭다운으로 의료/법률만 볼 수 있습니다.
 - 메뉴(☰) → **JSON으로 내보내기 / 가져오기**로 백업·복원합니다.
 
@@ -86,12 +93,16 @@ components/
   Workspace.tsx         # 상단바(검색·필터) + 캔버스 + 패널 조립
   GraphCanvas.tsx       # d3-force 레이아웃 + Canvas 2D 렌더링, 줌/드래그/선택
   NodePanel.tsx         # 선택한 표현의 연결·가중치·예문
+  PackModal.tsx         # 스타터 팩 선택·언어 선택·추가
+  ImportCsvModal.tsx    # CSV 용어집 미리보기·가져오기
   NodeForm.tsx, EdgeForm.tsx, SuggestBox.tsx, ...
 lib/
   types.ts              # 데이터 타입과 관계/언어 메타데이터
   firebase.ts           # Firebase 초기화 (에뮬레이터 옵션 포함)
   useGraph.ts           # Firestore CRUD 훅 (낙관적 업데이트, 배치 삭제, JSON 내보내기/가져오기)
-  seed.ts               # 예시 그래프
+  seed.ts               # 작은 예시 그래프
+  csv.ts                # CSV 파서와 가져오기 변환
+  packs/                # 스타터 팩 (medical.ts, legal.ts) 과 컴파일러
 firestore.rules         # 본인 데이터만 접근하도록 하는 보안 규칙
 legacy-flutter/         # 이전 Flutter 앱 (참고용, 더 이상 사용하지 않음)
 ```
@@ -102,7 +113,7 @@ Firestore 경로: `users/{uid}/nodes/{id}`, `users/{uid}/edges/{id}`, `users/{ui
 
 ```
 nodes     text, lang, kind(word|phrase|sentence), domain, register, note, preferred, created_at, updated_at
-edges     source_id, target_id, relation, weight(0..1), note, uses, created_at, updated_at
+edges     source_id, target_id, relation, weight(0..1), situation, note, uses, created_at, updated_at
 examples  node_id, text, translation, situation, source, created_at
 ```
 

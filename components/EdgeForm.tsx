@@ -4,30 +4,34 @@ import { useMemo, useState } from "react";
 import Modal from "./Modal";
 import LangSelect from "./LangSelect";
 import type { GraphNode, Relation } from "@/lib/types";
-import { RELATIONS, RELATION_ORDER, langColor, langLabel } from "@/lib/types";
+import { RELATIONS, RELATION_ORDER, SITUATIONS, langColor, langLabel } from "@/lib/types";
 import { pct } from "@/lib/graph-utils";
 
 interface Props {
   source: GraphNode;
   nodes: GraphNode[];
   knownLangs: string[];
+  knownSituations: string[];
   onSubmit: (input: {
     target: { id: string } | { text: string; lang: string };
     relation: Relation;
     weight: number;
     note: string;
+    situation: string;
   }) => Promise<void>;
   onClose: () => void;
 }
 
-export default function EdgeForm({ source, nodes, knownLangs, onSubmit, onClose }: Props) {
+export default function EdgeForm({ source, nodes, knownLangs, knownSituations, onSubmit, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [targetId, setTargetId] = useState<string | null>(null);
   const [newLang, setNewLang] = useState(knownLangs.find((l) => l !== source.lang) ?? knownLangs[0] ?? "en");
   const [relation, setRelation] = useState<Relation>("equivalent");
   const [weight, setWeight] = useState(0.7);
   const [note, setNote] = useState("");
+  const [situation, setSituation] = useState("");
   const [busy, setBusy] = useState(false);
+  const situationOptions = Array.from(new Set([...knownSituations, ...SITUATIONS]));
 
   const target = targetId ? nodes.find((n) => n.id === targetId) ?? null : null;
   const q = query.trim().toLowerCase();
@@ -49,6 +53,7 @@ export default function EdgeForm({ source, nodes, knownLangs, onSubmit, onClose 
       relation,
       weight,
       note,
+      situation,
     });
     setBusy(false);
   }
@@ -130,6 +135,23 @@ export default function EdgeForm({ source, nodes, knownLangs, onSubmit, onClose 
             {relation === "equivalent"
               ? "이 상황에서 상대 표현으로 옮기는 게 얼마나 자연스러운지. 나중에 패널에서 언제든 조정할 수 있습니다."
               : "그래프에서 선의 굵기와 거리로 표시됩니다."}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>상황 (선택)</label>
+          <input
+            className="input"
+            list="situation-list"
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            placeholder="환자 설명, 의료진 간, 법정, 계약서…"
+          />
+          <datalist id="situation-list">
+            {situationOptions.map((s) => <option key={s} value={s} />)}
+          </datalist>
+          <div className="hint">
+            같은 두 표현이라도 상황마다 적합도가 다르면, 상황별로 연결을 따로 만드세요. 패널에서 상황을 골라 1순위를 볼 수 있습니다.
           </div>
         </div>
 

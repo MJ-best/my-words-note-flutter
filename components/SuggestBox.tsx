@@ -16,6 +16,7 @@ export interface Suggestion {
   relation: Relation;
   weight: number;
   note: string;
+  situation: string | null;
   register: string | null;
   example: { text: string; translation: string; situation: string } | null;
 }
@@ -39,7 +40,7 @@ export default function SuggestBox({ node, nodes, api, onSelect }: { node: Graph
         connections: edgesOf(edges, node.id)
           .map((e) => {
             const o = byId.get(otherEnd(e, node.id));
-            return o ? { text: o.text, lang: o.lang, register: o.register, relation: relationFrom(e, node.id), weight: e.weight, note: e.note } : null;
+            return o ? { text: o.text, lang: o.lang, register: o.register, relation: relationFrom(e, node.id), weight: e.weight, note: e.note, situation: e.situation } : null;
           })
           .filter((c): c is NonNullable<typeof c> => c !== null),
         examples: examples.filter((x) => x.node_id === node.id).slice(0, 5).map((x) => ({ text: x.text, translation: x.translation, situation: x.situation })),
@@ -71,7 +72,7 @@ export default function SuggestBox({ node, nodes, api, onSelect }: { node: Graph
         await api.addExample({ node_id: created.id, text: s.example.text, translation: s.example.translation, situation: s.example.situation });
       }
     }
-    await api.addEdge({ source_id: node.id, target_id: target.id, relation: s.relation, weight: s.weight, note: s.note });
+    await api.addEdge({ source_id: node.id, target_id: target.id, relation: s.relation, weight: s.weight, note: s.note, situation: s.situation ?? undefined });
     setItems((prev) => prev?.filter((x) => x !== s) ?? null);
     onSelect(target.id);
     onSelect(node.id);
@@ -100,6 +101,7 @@ export default function SuggestBox({ node, nodes, api, onSelect }: { node: Graph
                 <span className="chip lang" style={{ background: langColor(s.lang) }}>{langLabel(s.lang)}</span>
                 <b>{s.text}</b>
                 <span className="rel chip" style={{ background: meta.color, color: "#fff" }}>{meta.short} {pct(s.weight)}</span>
+                {s.situation && <span className="chip">{s.situation}</span>}
                 {exists && <span className="hint">이미 있음 · 연결만 추가</span>}
               </div>
               <button className="btn sm primary" onClick={() => accept(s)}>추가</button>
