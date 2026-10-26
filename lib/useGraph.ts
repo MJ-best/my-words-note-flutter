@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  writeBatch,
+  type CollectionReference,
+  type DocumentData,
+} from "firebase/firestore";
+import { getDb } from "@/lib/firebase";
 import type {
   EdgeInput,
   Example,
@@ -19,8 +30,30 @@ export interface GraphExport {
   examples: Example[];
 }
 
+const BATCH_LIMIT = 450; // Firestore 배치 한도 500보다 여유 있게
+
+function now() {
+  return new Date().toISOString();
+}
+
+/** Firestore 문서에는 id를 넣지 않고, 읽을 때 doc.id로 채운다 */
+function strip<T extends { id: string }>(row: T): Omit<T, "id"> {
+  const { id: _id, ...rest } = row;
+  void _id;
+  return rest;
+}
+
 export function useGraph(userId: string) {
-  const supabase = useMemo(() => createClient(), []);
+  const db = useMemo(() => getDb(), []);
+  const cols = useMemo(
+    () => ({
+      nodes: collection(db, "users", userId, "nodes") as CollectionReference<DocumentData>,
+      edges: collection(db, "users", userId, "edges") as CollectionReference<DocumentData>,
+      examples: collection(db, "users", userId, "examples") as CollectionReference<DocumentData>,
+    }),
+    [db, userId],
+  );
+
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [examples, setExamples] = useState<Example[]>([]);
@@ -29,33 +62,31 @@ export function useGraph(userId: string) {
   const weightTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const fail = useCallback((e: unknown) => {
-    const msg = e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
-    setError(msg);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/permission-denied|Missing or insufficient permissions/i.test(msg)) {
+      setError(
+        "Firestore 접근이 거부되었습니다. Firebase 콘솔 → Firestore → 규칙에 firestore.rules 내용을 붙여 넣고 게시했는지 확인하세요.",
+      );
+    } else if (/unavailable|offline|network/i.test(msg)) {
+      setError("네트워크에 연결할 수 없습니다. 잠시 후 다시 시도하세요.");
+    } else setError(msg);
     console.error(e);
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [n, e, x] = await Promise.all([
-      supabase.from("nodes").select("*").order("created_at"),
-      supabase.from("edges").select("*").order("created_at"),
-      supabase.from("examples").select("*").order("created_at"),
-    ]);
-    const err = n.error ?? e.error ?? x.error;
-    if (err) {
-      if (/relation .* does not exist|schema cache/i.test(err.message)) {
-        setError(
-          "데이터베이스 테이블이 없습니다. Supabase SQL Editor에서 supabase/migrations/0001_init.sql 을 실행하세요.",
-        );
-      } else fail(err);
-    } else {
-      setNodes((n.data ?? []) as GraphNode[]);
-      setEdges((e.data ?? []) as GraphEdge[]);
-      setExamples((x.data ?? []) as Example[]);
+    try {
+      const [n, e, x] = await Promise.all([getDocs(cols.nodes), getDocs(cols.edges), getDocs(cols.examples)]);
+      const byCreated = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
+      setNodes(n.docs.map((d) => ({ ...(d.data() as Omit<GraphNode, "id">), id: d.id })).sort(byCreated));
+      setEdges(e.docs.map((d) => ({ ...(d.data() as Omit<GraphEdge, "id">), id: d.id })).sort(byCreated));
+      setExamples(x.docs.map((d) => ({ ...(d.data() as Omit<Example, "id">), id: d.id })).sort(byCreated));
+    } catch (err) {
+      fail(err);
     }
     setLoading(false);
-  }, [supabase, fail]);
+  }, [cols, fail]);
 
   useEffect(() => {
     void load();
@@ -64,7 +95,10 @@ export function useGraph(userId: string) {
   // ----- 노드 -----
   const addNode = useCallback(
     async (input: NodeInput): Promise<GraphNode | null> => {
-      const row = {
+      const ref = doc(cols.nodes);
+      const ts = now();
+      const node: GraphNode = {
+        id: ref.id,
         user_id: userId,
         text: input.text.trim(),
         lang: input.lang,
@@ -73,84 +107,102 @@ export function useGraph(userId: string) {
         register: input.register || null,
         note: input.note?.trim() || null,
         preferred: input.preferred ?? false,
+        created_at: ts,
+        updated_at: ts,
       };
-      const { data, error } = await supabase.from("nodes").insert(row).select().single();
-      if (error) {
-        fail(error);
+      try {
+        await setDoc(ref, strip(node));
+      } catch (err) {
+        fail(err);
         return null;
       }
-      const node = data as GraphNode;
       setNodes((prev) => [...prev, node]);
       return node;
     },
-    [supabase, userId, fail],
+    [cols, userId, fail],
   );
 
   const updateNode = useCallback(
     async (id: string, patch: Partial<NodeInput>) => {
-      const clean: Record<string, unknown> = { ...patch };
+      const clean: Record<string, unknown> = { ...patch, updated_at: now() };
       if (typeof clean.text === "string") clean.text = (clean.text as string).trim();
       if ("domain" in clean) clean.domain = (clean.domain as string | null)?.toString().trim() || null;
       if ("register" in clean) clean.register = clean.register || null;
       if ("note" in clean) clean.note = (clean.note as string | null)?.toString().trim() || null;
       setNodes((prev) => prev.map((n) => (n.id === id ? ({ ...n, ...clean } as GraphNode) : n)));
-      const { error } = await supabase.from("nodes").update(clean).eq("id", id);
-      if (error) {
-        fail(error);
+      try {
+        await updateDoc(doc(cols.nodes, id), clean);
+      } catch (err) {
+        fail(err);
         void load();
       }
     },
-    [supabase, fail, load],
+    [cols, fail, load],
   );
 
+  /** 노드와 그에 딸린 연결·예문을 함께 삭제 */
   const deleteNode = useCallback(
     async (id: string) => {
+      const deadEdges = edges.filter((e) => e.source_id === id || e.target_id === id);
+      const deadExamples = examples.filter((x) => x.node_id === id);
       setNodes((prev) => prev.filter((n) => n.id !== id));
       setEdges((prev) => prev.filter((e) => e.source_id !== id && e.target_id !== id));
       setExamples((prev) => prev.filter((x) => x.node_id !== id));
-      const { error } = await supabase.from("nodes").delete().eq("id", id);
-      if (error) {
-        fail(error);
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(cols.nodes, id));
+        for (const e of deadEdges) batch.delete(doc(cols.edges, e.id));
+        for (const x of deadExamples) batch.delete(doc(cols.examples, x.id));
+        await batch.commit();
+      } catch (err) {
+        fail(err);
         void load();
       }
     },
-    [supabase, fail, load],
+    [db, cols, edges, examples, fail, load],
   );
 
   // ----- 엣지 -----
   const addEdge = useCallback(
     async (input: EdgeInput): Promise<GraphEdge | null> => {
       if (input.source_id === input.target_id) return null;
-      const row = {
+      const ref = doc(cols.edges);
+      const ts = now();
+      const edge: GraphEdge = {
+        id: ref.id,
         user_id: userId,
         source_id: input.source_id,
         target_id: input.target_id,
         relation: input.relation,
-        weight: input.weight ?? 0.5,
+        weight: Math.min(1, Math.max(0, input.weight ?? 0.5)),
         note: input.note?.trim() || null,
+        uses: 0,
+        created_at: ts,
+        updated_at: ts,
       };
-      const { data, error } = await supabase.from("edges").insert(row).select().single();
-      if (error) {
-        fail(error);
+      try {
+        await setDoc(ref, strip(edge));
+      } catch (err) {
+        fail(err);
         return null;
       }
-      const edge = data as GraphEdge;
       setEdges((prev) => [...prev, edge]);
       return edge;
     },
-    [supabase, userId, fail],
+    [cols, userId, fail],
   );
 
   const updateEdge = useCallback(
     async (id: string, patch: Partial<Pick<GraphEdge, "relation" | "weight" | "note" | "uses">>) => {
       setEdges((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-      const { error } = await supabase.from("edges").update(patch).eq("id", id);
-      if (error) {
-        fail(error);
+      try {
+        await updateDoc(doc(cols.edges, id), { ...patch, updated_at: now() });
+      } catch (err) {
+        fail(err);
         void load();
       }
     },
-    [supabase, fail, load],
+    [cols, fail, load],
   );
 
   /** 슬라이더용: 화면은 즉시, 저장은 400ms 뒤에 한 번만 */
@@ -164,12 +216,15 @@ export function useGraph(userId: string) {
         id,
         setTimeout(async () => {
           timers.delete(id);
-          const { error } = await supabase.from("edges").update({ weight }).eq("id", id);
-          if (error) fail(error);
+          try {
+            await updateDoc(doc(cols.edges, id), { weight, updated_at: now() });
+          } catch (err) {
+            fail(err);
+          }
         }, 400),
       );
     },
-    [supabase, fail],
+    [cols, fail],
   );
 
   const bumpUses = useCallback(
@@ -184,53 +239,58 @@ export function useGraph(userId: string) {
   const deleteEdge = useCallback(
     async (id: string) => {
       setEdges((prev) => prev.filter((e) => e.id !== id));
-      const { error } = await supabase.from("edges").delete().eq("id", id);
-      if (error) {
-        fail(error);
+      try {
+        await deleteDoc(doc(cols.edges, id));
+      } catch (err) {
+        fail(err);
         void load();
       }
     },
-    [supabase, fail, load],
+    [cols, fail, load],
   );
 
   // ----- 예문 -----
   const addExample = useCallback(
     async (input: ExampleInput): Promise<Example | null> => {
-      const row = {
+      const ref = doc(cols.examples);
+      const ex: Example = {
+        id: ref.id,
         user_id: userId,
         node_id: input.node_id,
         text: input.text.trim(),
         translation: input.translation?.trim() || null,
         situation: input.situation?.trim() || null,
         source: input.source?.trim() || null,
+        created_at: now(),
       };
-      const { data, error } = await supabase.from("examples").insert(row).select().single();
-      if (error) {
-        fail(error);
+      try {
+        await setDoc(ref, strip(ex));
+      } catch (err) {
+        fail(err);
         return null;
       }
-      const ex = data as Example;
       setExamples((prev) => [...prev, ex]);
       return ex;
     },
-    [supabase, userId, fail],
+    [cols, userId, fail],
   );
 
   const deleteExample = useCallback(
     async (id: string) => {
       setExamples((prev) => prev.filter((x) => x.id !== id));
-      const { error } = await supabase.from("examples").delete().eq("id", id);
-      if (error) {
-        fail(error);
+      try {
+        await deleteDoc(doc(cols.examples, id));
+      } catch (err) {
+        fail(err);
         void load();
       }
     },
-    [supabase, fail, load],
+    [cols, fail, load],
   );
 
   // ----- 내보내기 / 가져오기 -----
   const exportGraph = useCallback((): GraphExport => {
-    return { version: 2, exported_at: new Date().toISOString(), nodes, edges, examples };
+    return { version: 2, exported_at: now(), nodes, edges, examples };
   }, [nodes, edges, examples]);
 
   /** 외부 JSON(이 앱의 export 또는 시드 데이터)을 새 id로 복사해 넣는다. */
@@ -241,66 +301,96 @@ export function useGraph(userId: string) {
       examples?: Array<Partial<Example> & { node_id: string; text: string }>;
     }) => {
       setError(null);
+      const ts = now();
       const idMap = new Map<string, string>();
-      const nodeRows = data.nodes.map((n) => {
-        const id = crypto.randomUUID();
-        idMap.set(n.id, id);
-        return {
-          id,
-          user_id: userId,
-          text: n.text,
-          lang: n.lang,
-          kind: n.kind ?? "word",
-          domain: n.domain ?? null,
-          register: n.register ?? null,
-          note: n.note ?? null,
-          preferred: n.preferred ?? false,
-        };
-      });
-      const edgeRows = data.edges
-        .filter((e) => idMap.has(e.source_id) && idMap.has(e.target_id) && e.source_id !== e.target_id)
-        .map((e) => ({
-          user_id: userId,
-          source_id: idMap.get(e.source_id)!,
-          target_id: idMap.get(e.target_id)!,
-          relation: e.relation,
-          weight: e.weight ?? 0.5,
-          note: e.note ?? null,
-          uses: e.uses ?? 0,
-        }));
-      const exampleRows = (data.examples ?? [])
-        .filter((x) => idMap.has(x.node_id))
-        .map((x) => ({
-          user_id: userId,
-          node_id: idMap.get(x.node_id)!,
-          text: x.text,
-          translation: x.translation ?? null,
-          situation: x.situation ?? null,
-          source: x.source ?? null,
-        }));
+      const writes: Array<{ col: CollectionReference<DocumentData>; id: string; data: DocumentData }> = [];
 
-      if (nodeRows.length) {
-        const { error } = await supabase.from("nodes").insert(nodeRows);
-        if (error) return fail(error);
+      for (const n of data.nodes) {
+        const id = doc(cols.nodes).id;
+        idMap.set(n.id, id);
+        writes.push({
+          col: cols.nodes,
+          id,
+          data: {
+            user_id: userId,
+            text: n.text,
+            lang: n.lang,
+            kind: n.kind ?? "word",
+            domain: n.domain ?? null,
+            register: n.register ?? null,
+            note: n.note ?? null,
+            preferred: n.preferred ?? false,
+            created_at: ts,
+            updated_at: ts,
+          },
+        });
       }
-      if (edgeRows.length) {
-        const { error } = await supabase.from("edges").insert(edgeRows);
-        if (error) return fail(error);
+      for (const e of data.edges) {
+        if (!idMap.has(e.source_id) || !idMap.has(e.target_id) || e.source_id === e.target_id) continue;
+        writes.push({
+          col: cols.edges,
+          id: doc(cols.edges).id,
+          data: {
+            user_id: userId,
+            source_id: idMap.get(e.source_id)!,
+            target_id: idMap.get(e.target_id)!,
+            relation: e.relation,
+            weight: e.weight ?? 0.5,
+            note: e.note ?? null,
+            uses: e.uses ?? 0,
+            created_at: ts,
+            updated_at: ts,
+          },
+        });
       }
-      if (exampleRows.length) {
-        const { error } = await supabase.from("examples").insert(exampleRows);
-        if (error) return fail(error);
+      for (const x of data.examples ?? []) {
+        if (!idMap.has(x.node_id)) continue;
+        writes.push({
+          col: cols.examples,
+          id: doc(cols.examples).id,
+          data: {
+            user_id: userId,
+            node_id: idMap.get(x.node_id)!,
+            text: x.text,
+            translation: x.translation ?? null,
+            situation: x.situation ?? null,
+            source: x.source ?? null,
+            created_at: ts,
+          },
+        });
+      }
+
+      try {
+        for (let i = 0; i < writes.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          for (const w of writes.slice(i, i + BATCH_LIMIT)) batch.set(doc(w.col, w.id), w.data);
+          await batch.commit();
+        }
+      } catch (err) {
+        fail(err);
       }
       await load();
     },
-    [supabase, userId, fail, load],
+    [db, cols, userId, fail, load],
   );
 
   const clearAll = useCallback(async () => {
-    const { error } = await supabase.from("nodes").delete().eq("user_id", userId);
-    if (error) fail(error);
+    try {
+      const refs = [
+        ...nodes.map((n) => doc(cols.nodes, n.id)),
+        ...edges.map((e) => doc(cols.edges, e.id)),
+        ...examples.map((x) => doc(cols.examples, x.id)),
+      ];
+      for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        for (const r of refs.slice(i, i + BATCH_LIMIT)) batch.delete(r);
+        await batch.commit();
+      }
+    } catch (err) {
+      fail(err);
+    }
     await load();
-  }, [supabase, userId, fail, load]);
+  }, [db, cols, nodes, edges, examples, fail, load]);
 
   return {
     nodes,

@@ -1,10 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import type { GraphEdge, GraphNode, Example } from "@/lib/types";
 import { RELATIONS, langLabel } from "@/lib/types";
-import { relationFrom, otherEnd } from "@/lib/graph-utils";
+import { SuggestRequestSchema } from "./schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -85,51 +83,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "AI 제안이 설정되지 않았습니다 (ANTHROPIC_API_KEY 없음)." }, { status: 503 });
   }
 
-  const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  const uid = await verifyIdToken(req.headers.get("authorization"));
+  if (!uid) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-  let body: { nodeId?: string; extraLangs?: string[] };
+  let raw: unknown;
   try {
-    body = await req.json();
+    raw = await req.json();
   } catch {
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
   }
-  if (!body.nodeId) return NextResponse.json({ error: "nodeId가 필요합니다." }, { status: 400 });
+  const parsedReq = SuggestRequestSchema.safeParse(raw);
+  if (!parsedReq.success) return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+  const { node: n, connections, examples: exampleRows, graphLangs, extraLangs } = parsedReq.data;
 
-  // RLS 덕분에 본인 데이터만 조회된다
-  const { data: node } = await supabase.from("nodes").select("*").eq("id", body.nodeId).maybeSingle();
-  if (!node) return NextResponse.json({ error: "표현을 찾을 수 없습니다." }, { status: 404 });
-  const n = node as GraphNode;
-
-  const [{ data: edgesRaw }, { data: allLangsRaw }, { data: examplesRaw }] = await Promise.all([
-    supabase.from("edges").select("*").or(`source_id.eq.${n.id},target_id.eq.${n.id}`),
-    supabase.from("nodes").select("lang"),
-    supabase.from("examples").select("*").eq("node_id", n.id).limit(5),
-  ]);
-  const edges = (edgesRaw ?? []) as GraphEdge[];
-  const neighborIds = edges.map((e) => otherEnd(e, n.id));
-  const { data: neighborsRaw } = neighborIds.length
-    ? await supabase.from("nodes").select("*").in("id", neighborIds)
-    : { data: [] as GraphNode[] };
-  const neighbors = new Map(((neighborsRaw ?? []) as GraphNode[]).map((x) => [x.id, x]));
-
-  const graphLangs = new Set(((allLangsRaw ?? []) as { lang: string }[]).map((x) => x.lang));
-  for (const l of body.extraLangs ?? []) if (/^[a-z]{2,8}$/i.test(l)) graphLangs.add(l.toLowerCase());
-  graphLangs.delete(n.lang);
-  const targetLangs = Array.from(graphLangs);
+  const langSet = new Set(graphLangs);
+  for (const l of extraLangs) if (/^[a-z]{2,8}$/i.test(l)) langSet.add(l.toLowerCase());
+  langSet.delete(n.lang);
+  const targetLangs = Array.from(langSet);
   if (targetLangs.length === 0) targetLangs.push(n.lang === "en" ? "ko" : "en");
 
-  const existing = edges
-    .map((e) => {
-      const o = neighbors.get(otherEnd(e, n.id));
-      if (!o) return null;
-      const rel = relationFrom(e, n.id);
-      return `- [${RELATIONS[rel].label}] ${o.text} (${langLabel(o.lang)}, ${o.register ?? "register unspecified"}) weight ${e.weight}${e.note ? ` — ${e.note}` : ""}`;
-    })
-    .filter(Boolean)
+  const existing = connections
+    .map(
+      (c) =>
+        `- [${RELATIONS[c.relation].label}] ${c.text} (${langLabel(c.lang)}, ${c.register ?? "register unspecified"}) weight ${c.weight}${c.note ? ` — ${c.note}` : ""}`,
+    )
     .join("\n");
-  const examples = ((examplesRaw ?? []) as Example[])
+  const examples = exampleRows
     .map((x) => `- "${x.text}"${x.translation ? ` → "${x.translation}"` : ""}${x.situation ? ` (${x.situation})` : ""}`)
     .join("\n");
 
@@ -185,5 +164,28 @@ Return up to 6 suggestions.`;
       return NextResponse.json({ error: `AI 요청 실패 (${err.status}): ${err.message}` }, { status: 502 });
     }
     return NextResponse.json({ error: err instanceof Error ? err.message : "알 수 없는 오류" }, { status: 500 });
+  }
+}
+
+/**
+ * Firebase ID 토큰 검증. 서비스 계정 없이 Identity Toolkit의 accounts:lookup 으로 확인한다.
+ * 유효하면 uid, 아니면 null.
+ */
+async function verifyIdToken(header: string | null): Promise<string | null> {
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  if (!token || !apiKey) return null;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { users?: Array<{ localId?: string }> };
+    return data.users?.[0]?.localId ?? null;
+  } catch {
+    return null;
   }
 }

@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import type { GraphNode, Relation } from "@/lib/types";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { edgesOf, otherEnd, relationFrom } from "@/lib/graph-utils";
 import { RELATIONS, langColor, langLabel } from "@/lib/types";
 import { findNode, pct } from "@/lib/graph-utils";
+import type { SuggestRequest } from "@/app/api/suggest/schema";
 import type { GraphApi } from "@/lib/useGraph";
 
 export interface Suggestion {
@@ -18,6 +21,7 @@ export interface Suggestion {
 }
 
 export default function SuggestBox({ node, nodes, api, onSelect }: { node: GraphNode; nodes: GraphNode[]; api: GraphApi; onSelect: (id: string) => void }) {
+  const { edges, examples } = api;
   const [items, setItems] = useState<Suggestion[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,10 +31,25 @@ export default function SuggestBox({ node, nodes, api, onSelect }: { node: Graph
     setBusy(true);
     setError(null);
     try {
+      const token = await getFirebaseAuth().currentUser?.getIdToken();
+      if (!token) throw new Error("로그인이 필요합니다.");
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      const payload: SuggestRequest = {
+        node: { text: node.text, lang: node.lang, kind: node.kind, domain: node.domain, register: node.register, note: node.note },
+        connections: edgesOf(edges, node.id)
+          .map((e) => {
+            const o = byId.get(otherEnd(e, node.id));
+            return o ? { text: o.text, lang: o.lang, register: o.register, relation: relationFrom(e, node.id), weight: e.weight, note: e.note } : null;
+          })
+          .filter((c): c is NonNullable<typeof c> => c !== null),
+        examples: examples.filter((x) => x.node_id === node.id).slice(0, 5).map((x) => ({ text: x.text, translation: x.translation, situation: x.situation })),
+        graphLangs: Array.from(new Set(nodes.map((n) => n.lang))),
+        extraLangs: extraLang.split(",").map((s) => s.trim()).filter(Boolean),
+      };
       const res = await fetch("/api/suggest", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nodeId: node.id, extraLangs: extraLang.split(",").map((s) => s.trim()).filter(Boolean) }),
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `요청 실패 (${res.status})`);

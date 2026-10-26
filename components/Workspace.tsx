@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { signOut as firebaseSignOut } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { useGraph } from "@/lib/useGraph";
 import { SEED } from "@/lib/seed";
 import type { GraphNode, NodeInput, Relation } from "@/lib/types";
@@ -141,9 +142,8 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
   }
 
   async function signOut() {
-    await createClient().auth.signOut();
+    await firebaseSignOut(getFirebaseAuth());
     router.replace("/login");
-    router.refresh();
   }
 
   const toggleLang = (code: string) =>

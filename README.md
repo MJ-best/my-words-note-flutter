@@ -24,40 +24,46 @@
 ## 기술 스택
 
 - **Next.js 16** (App Router, TypeScript) → **Vercel** 배포
-- **Supabase** (Postgres + Auth + Row Level Security) → 계정별 데이터 분리
+- **Firebase** (Firestore + Authentication, Spark 무료 플랜) → 계정별 데이터 분리
 - **d3-force** + Canvas 2D → 그래프 렌더링 (외부 그래프 라이브러리 없음)
 - (선택) **Claude API** → AI 제안
 
-로그인은 Supabase의 이메일+비밀번호 인증을 사용합니다. 이메일 확인을 꺼 두면 **아무 이메일 형식과 비밀번호만으로 즉시 계정이 만들어집니다** (무료 티어, OAuth 연동 없음).
+로그인은 Firebase의 이메일+비밀번호 인증을 사용합니다. 이메일 확인 절차가 없으므로 **아무 이메일 형식과 비밀번호만으로 즉시 계정이 만들어집니다** (OAuth 연동 없음).
 
 ## 설치 순서
 
-### 1. Supabase 프로젝트 만들기
+### 1. Firebase 프로젝트 만들기
 
-1. <https://supabase.com> 에서 새 프로젝트를 만듭니다 (Free 플랜).
-2. **SQL Editor** 에서 [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) 내용을 붙여 넣고 실행합니다. 테이블 3개(`nodes`, `edges`, `examples`)와 RLS 정책이 만들어집니다.
-3. **Authentication → Sign In / Providers → Email** 에서 **Confirm email** 을 **끕니다**. 이걸 꺼야 메일 인증 없이 바로 로그인됩니다.
-4. **Project Settings → API** 에서 `Project URL` 과 `anon public` 키(또는 새 형식의 `publishable` 키)를 복사합니다.
+1. <https://console.firebase.google.com> 에서 새 프로젝트를 만듭니다 (Spark 무료 플랜, Google Analytics는 꺼도 됩니다).
+2. **빌드 → Authentication → 시작하기 → Sign-in method** 에서 **이메일/비밀번호** 를 사용 설정합니다. (이메일 링크 로그인은 끈 채로 둡니다.)
+3. **빌드 → Firestore Database → 데이터베이스 만들기** → 위치를 고르고 **프로덕션 모드**로 만듭니다.
+4. Firestore의 **규칙** 탭에 [`firestore.rules`](firestore.rules) 내용을 붙여 넣고 **게시**합니다. 이 규칙이 "로그인한 사용자는 자기 데이터만" 을 강제합니다.
+5. **프로젝트 설정(톱니바퀴) → 일반 → 내 앱 → 웹 앱 추가(</>)** 로 웹 앱을 등록하고, 표시되는 `firebaseConfig` 값들을 복사합니다.
 
 ### 2. 로컬 실행
 
 ```bash
-cp .env.example .env.local   # 복사한 URL과 키를 채웁니다
+cp .env.example .env.local   # 복사한 firebaseConfig 값을 채웁니다
 npm install
 npm run dev                  # http://localhost:3000
+```
+
+Firebase 프로젝트 없이 로컬에서만 돌려 보려면 `.env.local`에 `NEXT_PUBLIC_FIREBASE_USE_EMULATOR=1` 을 추가하고(나머지 값은 아무 문자열이어도 됨, `NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-nuance`) 다른 터미널에서 에뮬레이터를 띄웁니다.
+
+```bash
+npx firebase-tools emulators:start --only auth,firestore --project demo-nuance
 ```
 
 ### 3. Vercel 배포
 
 1. 이 저장소를 GitHub에 올리고 <https://vercel.com> 에서 **Import** 합니다. 프레임워크는 자동으로 Next.js로 잡힙니다.
 2. **Environment Variables** 에 아래를 추가합니다.
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` — `.env.example` 참고
    - (선택) `ANTHROPIC_API_KEY` — 넣으면 패널에 **AI 제안** 섹션이 나타납니다.
    - (선택) `ANTHROPIC_MODEL` — 기본값 `claude-opus-5-5`. 비용을 낮추려면 `claude-sonnet-5-5` 또는 `claude-haiku-5-5`.
 3. Deploy. 이후에는 `main` 브랜치에 push 할 때마다 자동 배포됩니다.
 
-Supabase 쪽에서 **Authentication → URL Configuration → Site URL** 을 Vercel 주소로 바꿔 두면 좋습니다 (이메일 확인을 끈 상태라면 필수는 아닙니다).
+배포 주소에서 로그인이 막히면 Firebase **Authentication → 설정 → 승인된 도메인** 에 Vercel 도메인(`xxx.vercel.app`)을 추가하세요. 이메일/비밀번호 로그인은 보통 추가 없이도 동작합니다.
 
 ## 사용법
 
@@ -72,32 +78,36 @@ Supabase 쪽에서 **Authentication → URL Configuration → Site URL** 을 Ver
 
 ```
 app/
-  page.tsx              # 로그인 확인 후 작업 공간 렌더
+  page.tsx              # 환경 변수 확인 후 AuthGate 렌더
   login/page.tsx        # 이메일+비밀번호 로그인·가입
-  api/suggest/route.ts  # (선택) AI 제안 — Claude API
+  api/suggest/route.ts  # (선택) AI 제안 — Claude API (Firebase ID 토큰 검증)
 components/
+  AuthGate.tsx          # 로그인 상태 확인, 미로그인 시 /login 으로
   Workspace.tsx         # 상단바(검색·필터) + 캔버스 + 패널 조립
   GraphCanvas.tsx       # d3-force 레이아웃 + Canvas 2D 렌더링, 줌/드래그/선택
   NodePanel.tsx         # 선택한 표현의 연결·가중치·예문
   NodeForm.tsx, EdgeForm.tsx, SuggestBox.tsx, ...
 lib/
   types.ts              # 데이터 타입과 관계/언어 메타데이터
-  useGraph.ts           # Supabase CRUD 훅 (낙관적 업데이트, JSON 내보내기/가져오기)
+  firebase.ts           # Firebase 초기화 (에뮬레이터 옵션 포함)
+  useGraph.ts           # Firestore CRUD 훅 (낙관적 업데이트, 배치 삭제, JSON 내보내기/가져오기)
   seed.ts               # 예시 그래프
-supabase/migrations/0001_init.sql
+firestore.rules         # 본인 데이터만 접근하도록 하는 보안 규칙
 legacy-flutter/         # 이전 Flutter 앱 (참고용, 더 이상 사용하지 않음)
 ```
 
 ## 데이터 모델
 
+Firestore 경로: `users/{uid}/nodes/{id}`, `users/{uid}/edges/{id}`, `users/{uid}/examples/{id}`
+
 ```
-nodes     id, user_id, text, lang, kind(word|phrase|sentence), domain, register, note, preferred
-edges     id, user_id, source_id, target_id, relation, weight(0..1), note, uses
-examples  id, user_id, node_id, text, translation, situation, source
+nodes     text, lang, kind(word|phrase|sentence), domain, register, note, preferred, created_at, updated_at
+edges     source_id, target_id, relation, weight(0..1), note, uses, created_at, updated_at
+examples  node_id, text, translation, situation, source, created_at
 ```
 
 `relation` 은 source 기준으로 target을 설명합니다. `broader` = target이 더 넓은 개념, `narrower` = target이 더 좁은 개념. 나머지는 대칭입니다.
-모든 테이블에 RLS가 걸려 있어 로그인한 사용자는 자기 행만 읽고 쓸 수 있습니다.
+보안 규칙에 따라 로그인한 사용자는 `users/{자기 uid}` 아래 문서만 읽고 쓸 수 있습니다. 사용자별 그래프를 통째로 불러와 클라이언트에서 다루므로 복합 색인은 필요 없습니다.
 
 ## 라이선스
 
