@@ -118,6 +118,13 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--surface); border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
+.filters { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.mobile-only { display: none !important; }
+.fab {
+  position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 20;
+  width: 54px; height: 54px; border-radius: 50%; border: 0; background: var(--accent); color: var(--bg);
+  font-size: 28px; line-height: 1; box-shadow: var(--shadow); cursor: pointer;
+}
 .brand { font-weight: 800; letter-spacing: -0.02em; font-size: 17px; display: flex; align-items: center; gap: 8px; color: var(--text); }
 .brand .penguin { width: 22px; height: 32px; color: var(--text); flex: 0 0 auto; }
 .mark { width: 76px; height: auto; color: var(--text); margin: 0 auto; display: block; }
@@ -239,15 +246,71 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ---------- 모바일 ---------- */
 @media (max-width: 860px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: inline-flex !important; }
+
+  /* iOS는 16px 미만 입력창에 포커스하면 화면을 확대한다 */
+  .input, .select, .textarea { font-size: 16px; }
+
+  .topbar {
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px; gap: 8px 6px;
+  }
+  .topbar .brand-text { display: none; }
+  .filters:empty { display: none; }
+  .brand .penguin { width: 20px; height: 29px; }
+  .search { flex: 1 1 auto; min-width: 0; max-width: none; order: 0; }
+  .search .input { min-height: 40px; }
+  .topbar > div:last-child { margin-left: 0 !important; }
+  /* 두 번째 줄: 가로 스크롤 필터 */
+  .filters {
+    order: 10; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    gap: 6px; padding: 2px 0 4px; margin: 0 -12px; padding-left: 12px; padding-right: 12px;
+    scrollbar-width: none;
+  }
+  .filters::-webkit-scrollbar { display: none; }
+  .filters > * { flex: 0 0 auto; }
+
   .main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .canvas-hint { display: none; }
+  .canvas-tools { right: 10px; top: 10px; }
+  .legend { display: none; }
+
+  /* 바텀 시트 패널 */
   .panel {
-    position: fixed; left: 0; right: 0; bottom: 0; top: 30%; z-index: 40;
-    border-left: 0; border-top: 1px solid var(--border); border-radius: 18px 18px 0 0;
-    box-shadow: var(--shadow); padding: 14px 16px;
+    position: fixed; left: 0; right: 0; bottom: 0; top: 34%; z-index: 40;
+    border-left: 0; border-top: 1px solid var(--border); border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 30px rgba(31, 42, 68, 0.14); padding: 10px 16px calc(20px + env(safe-area-inset-bottom));
+    gap: 14px;
+  }
+  .panel::before {
+    content: ""; display: block; width: 40px; height: 4px; border-radius: 2px;
+    background: var(--border); margin: 0 auto 2px;
   }
   .panel.hidden { display: none; }
+  .panel h2 { font-size: 20px; }
   .panel-close { display: inline-flex; }
-  .topbar { padding: 8px 12px; }
-  .search { max-width: none; }
-  .legend { display: none; }
+
+  /* 빈 화면 */
+  .empty { align-items: flex-start; overflow-y: auto; padding: 16px 16px calc(90px + env(safe-area-inset-bottom)); }
+  .empty .card { padding: 22px 18px; gap: 10px; box-shadow: none; }
+  .empty .mark { width: 56px; }
+  .empty h1 { font-size: 19px; }
+  .empty .card > div { flex-direction: column; }
+  .empty .card .btn { width: 100%; justify-content: center; }
+
+  /* 모달은 바텀 시트로 */
+  .modal-bg { align-items: flex-end; padding: 0; }
+  .modal {
+    max-width: none; border-radius: 20px 20px 0 0; max-height: 92dvh;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); gap: 12px;
+  }
+  .modal .row { flex-direction: column; gap: 10px; }
+  .modal .footer .btn { flex: 1; justify-content: center; }
+
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom)); left: 16px; right: 16px; transform: none; width: auto; text-align: center; }
+
+  .auth { padding: 16px; align-items: flex-start; padding-top: calc(32px + env(safe-area-inset-top)); }
+  .auth .card { padding: 22px 18px; box-shadow: none; }
+  .auth .mark { width: 52px; }
+  .auth h1 { font-size: 22px; }
 }

@@ -181,7 +181,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
           <input
             ref={searchRef}
             className="input"
-            placeholder="표현 검색 ( / )"
+            placeholder="표현 검색"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
             onFocus={() => setSearchOpen(true)}
@@ -203,7 +203,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="filters">
           {knownLangs.map((code) => {
             const on = langFilter.size === 0 || langFilter.has(code);
             return (
@@ -227,7 +227,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
-          <button className="btn primary" onClick={() => setNodeForm({ mode: "new" })}>+ 표현</button>
+          <button className="btn primary desktop-only" onClick={() => setNodeForm({ mode: "new" })}>+ 표현</button>
           <button className="btn icon" onClick={() => setMenuOpen((v) => !v)} aria-label="메뉴">☰</button>
           {menuOpen && (
             <div className="search-results" style={{ left: "auto", right: 0, width: 260 }} onMouseLeave={() => setMenuOpen(false)}>
@@ -267,6 +267,9 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
           </div>
           {!loading && nodes.length > 0 && !selectedId && (
             <div className="canvas-hint">노드를 클릭해 연결과 뉘앙스를 보세요 · 빈 곳 더블클릭으로 새 표현</div>
+          )}
+          {!selected && (
+            <button className="fab mobile-only" onClick={() => setNodeForm({ mode: "new" })} aria-label="새 표현">＋</button>
           )}
           {loading && <div className="empty"><div className="card"><p className="muted">불러오는 중…</p></div></div>}
           {!loading && error && (
@@ -329,7 +332,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
                 <li>연결의 슬라이더는 "내가 느끼는 적합도"입니다. 사전이 아니라 내 감각으로 조정하세요.</li>
                 <li>굵은 선 = 높은 적합도. 점선 = 유사·주의. 화살표 = 상위·하위 개념.</li>
                 <li>실제 통역에서 어떤 대응을 썼다면 "사용 +1"을 눌러 두세요. 자주 쓰는 대응이 쌓입니다.</li>
-                <li>위의 언어 칩으로 언어별 표시를 끄고 켤 수 있습니다.</li>
+                <li>위의 언어 칩으로 언어별 표시를 끄고 켤 수 있습니다. 단축키: / 검색, n 새 표현, Esc 닫기.</li>
               </ul>
             </section>
           </aside>

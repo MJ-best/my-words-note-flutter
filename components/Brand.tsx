@@ -98,7 +98,7 @@ export default function Brand({ large = false }: { large?: boolean }) {
   return (
     <div className="brand" style={large ? { fontSize: 22 } : undefined}>
       <Penguin className="penguin" style={large ? { width: 28, height: 40 } : undefined} />
-      Nuance Graph
+      <span className="brand-text">Nuance Graph</span>
     </div>
   );
 }

@@ -529,8 +529,8 @@ export default function GraphCanvas({
     <div className="canvas-wrap" ref={wrapRef}>
       <canvas ref={canvasRef} aria-label="표현 관계 그래프" />
       <div className="canvas-tools">
-        <button className="btn icon" title="확대" onClick={() => zoomBy(1.4)}>＋</button>
-        <button className="btn icon" title="축소" onClick={() => zoomBy(1 / 1.4)}>－</button>
+        <button className="btn icon desktop-only" title="확대" onClick={() => zoomBy(1.4)}>＋</button>
+        <button className="btn icon desktop-only" title="축소" onClick={() => zoomBy(1 / 1.4)}>－</button>
         <button className="btn icon" title="전체 보기" onClick={fitAll}>⤢</button>
       </div>
     </div>
