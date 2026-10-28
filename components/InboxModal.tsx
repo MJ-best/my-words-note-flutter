@@ -47,10 +47,10 @@ export default function InboxModal({ api, onDone, onClose }: Props) {
       edges.push({ source_id: s, target_id: t, relation: it.relation, weight: it.weight, note: it.note, situation: it.situation });
       if (it.example?.text) examples.push({ node_id: s, text: it.example.text, translation: it.example.translation || null, situation: it.example.situation ?? it.situation });
     }
-    const r = await api.importGraph({ nodes: Array.from(nodes.values()), edges, examples }, { dedupe: true, label: `AI 추출 검수 · ${chosen.length}건` });
+    const r = await api.importGraph({ nodes: Array.from(nodes.values()), edges, examples }, { dedupe: true, updateExisting: true, label: `AI 추출 검수 · ${chosen.length}건` });
     await api.deleteInboxItems(chosen.map((i) => i.id));
     setBusy(false);
-    onDone(`검수한 ${chosen.length}건을 반영했습니다: 표현 ${r.nodes}개, 연결 ${r.edges}개, 예문 ${r.examples}개 추가.`);
+    onDone(`검수한 ${chosen.length}건을 반영했습니다: 표현 ${r.nodes}개, 연결 ${r.edges}개, 예문 ${r.examples}개 추가${r.updated ? `, 기존 연결 ${r.updated}개 갱신` : ""}.`);
   }
 
   async function discardSelected() {

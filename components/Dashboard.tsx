@@ -85,7 +85,7 @@ export default function Dashboard({ nodes, edges, examples, onOpen }: Props) {
 
   return (
     <div className="dash">
-      <SearchBox ref={searchRef} nodes={nodes} onPick={onOpen} large placeholder="표현, 메모, 분야 검색 — 선택하면 그 표현을 중심으로 그래프가 열립니다" />
+      <SearchBox ref={searchRef} nodes={nodes} edges={edges} onPick={onOpen} large placeholder="표현, 메모, 상황, 분야 검색 — 선택하면 그 표현을 중심으로 그래프가 열립니다" />
 
       <div className="stats">
         <div className="stat">

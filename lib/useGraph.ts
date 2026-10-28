@@ -332,18 +332,19 @@ export function useGraph(userId: string) {
   const importGraph = useCallback(
     async (
       data: ImportData,
-      options: { dedupe?: boolean; importId?: string; label?: string } = {},
-    ): Promise<{ nodes: number; edges: number; examples: number }> => {
+      options: { dedupe?: boolean; importId?: string; label?: string; updateExisting?: boolean } = {},
+    ): Promise<{ nodes: number; edges: number; examples: number; updated: number }> => {
       setError(null);
       const ts = now();
       const importId = options.importId ?? doc(cols.imports).id;
       const idMap = new Map<string, string>();
       const writes: Array<{ col: CollectionReference<DocumentData>; id: string; data: DocumentData }> = [];
-      const counts = { nodes: 0, edges: 0, examples: 0 };
+      const counts = { nodes: 0, edges: 0, examples: 0, updated: 0 };
+      const updates: Array<{ id: string; data: DocumentData }> = [];
       const dedupe = options.dedupe ?? false;
       const key = (text: string, lang: string) => `${lang}\u0000${text.trim().toLowerCase()}`;
       const existingNodes = new Map(nodes.map((n) => [key(n.text, n.lang), n.id]));
-      const existingEdges = new Set(edges.map((e) => `${e.source_id}|${e.target_id}|${e.relation}|${e.situation ?? ""}`));
+      const existingEdges = new Map(edges.map((e) => [`${e.source_id}|${e.target_id}|${e.relation}|${e.situation ?? ""}`, e.id]));
       const existingExamples = new Set(examples.map((x) => `${x.node_id}|${x.text.trim()}`));
 
       for (const n of data.nodes) {
@@ -382,8 +383,18 @@ export function useGraph(userId: string) {
         if (sid === tid) continue;
         const sig = `${sid}|${tid}|${e.relation}|${e.situation ?? ""}`;
         const sigRev = `${tid}|${sid}|${e.relation}|${e.situation ?? ""}`;
-        if (dedupe && (existingEdges.has(sig) || existingEdges.has(sigRev))) continue;
-        existingEdges.add(sig);
+        const dupId = existingEdges.get(sig) ?? existingEdges.get(sigRev);
+        if (dedupe && dupId) {
+          // 같은 쌍·관계·상황이 이미 있으면: 요청 시에만 가중치·메모를 새 값으로 갱신
+          if (options.updateExisting && dupId !== "pending") {
+            const patch: DocumentData = { weight: e.weight ?? 0.5, updated_at: ts };
+            if (e.note) patch.note = e.note;
+            updates.push({ id: dupId, data: patch });
+            counts.updated++;
+          }
+          continue;
+        }
+        existingEdges.set(sig, "pending");
         counts.edges++;
         writes.push({
           col: cols.edges,
@@ -430,6 +441,11 @@ export function useGraph(userId: string) {
         for (let i = 0; i < writes.length; i += BATCH_LIMIT) {
           const batch = writeBatch(db);
           for (const w of writes.slice(i, i + BATCH_LIMIT)) batch.set(doc(w.col, w.id), w.data);
+          await batch.commit();
+        }
+        for (let i = 0; i < updates.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          for (const u of updates.slice(i, i + BATCH_LIMIT)) batch.update(doc(cols.edges, u.id), u.data);
           await batch.commit();
         }
         if (writes.length > 0) {
