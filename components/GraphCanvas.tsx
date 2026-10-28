@@ -42,7 +42,13 @@ interface Props {
   fitTick: number;
   onSelect: (id: string | null) => void;
   onBackgroundDoubleClick?: () => void;
+  /** 노드 모서리에 표시할 배지: "+" 펼칠 수 있음, "-" 접을 수 있음 */
+  badges?: Record<string, "+" | "-">;
+  /** 배지 클릭 또는 노드 더블클릭 */
+  onToggleExpand?: (id: string) => void;
 }
+
+const BADGE_R = 9;
 
 const FONT_FAMILY =
   '"Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Hiragino Sans", "Noto Sans JP", "Segoe UI", Roboto, sans-serif';
@@ -63,6 +69,8 @@ export default function GraphCanvas({
   fitTick,
   onSelect,
   onBackgroundDoubleClick,
+  badges,
+  onToggleExpand,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -79,8 +87,12 @@ export default function GraphCanvas({
   const themeRef = useRef({ text: "#1f2a44", surface: "#fffcf4", accent: "#e0a63a", bg: "#f4efe2", muted: "#8a90a3" });
   const onSelectRef = useRef(onSelect);
   const onDblRef = useRef(onBackgroundDoubleClick);
+  const onToggleRef = useRef(onToggleExpand);
+  const badgesRef = useRef<Record<string, "+" | "-"> | undefined>(badges);
   onSelectRef.current = onSelect;
   onDblRef.current = onBackgroundDoubleClick;
+  onToggleRef.current = onToggleExpand;
+  badgesRef.current = badges;
   selectedRef.current = selectedId;
 
   // ---------- 그리기 ----------
@@ -221,8 +233,40 @@ export default function GraphCanvas({
       ctx.fillStyle = "#fff";
       ctx.font = NODE_FONT;
       ctx.fillText(n.label, n.x, n.y + 0.5);
+
+      // 펼치기/접기 배지
+      const badge = badgesRef.current?.[n.id];
+      if (badge && !dim) {
+        const bx = x + n.w - 2, by = y + 2;
+        ctx.beginPath();
+        ctx.arc(bx, by, BADGE_R, 0, Math.PI * 2);
+        ctx.fillStyle = badge === "+" ? theme.accent : theme.surface;
+        ctx.fill();
+        ctx.strokeStyle = badge === "+" ? theme.surface : color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = badge === "+" ? "#1f2a44" : color;
+        ctx.font = `700 13px ${FONT_FAMILY}`;
+        ctx.fillText(badge === "+" ? "+" : "–", bx, by + 0.5);
+        ctx.font = NODE_FONT;
+      }
     }
     ctx.globalAlpha = 1;
+
+    // 개발·테스트용: 노드의 화면 좌표를 읽을 수 있게 한다 (프로덕션 번들에서는 제거됨)
+    if (process.env.NODE_ENV !== "production") {
+      (window as unknown as { __graphPositions?: unknown }).__graphPositions = () => {
+        const rect = canvas.getBoundingClientRect();
+        const tt = transformRef.current;
+        return simNodesRef.current.map((n) => ({
+          id: n.id,
+          text: n.node.text,
+          x: rect.left + (n.x ?? 0) * tt.k + tt.x,
+          y: rect.top + (n.y ?? 0) * tt.k + tt.y,
+          badge: badgesRef.current?.[n.id] ?? null,
+        }));
+      };
+    }
   }, []);
 
   const requestDraw = useCallback(() => {
@@ -246,6 +290,23 @@ export default function GraphCanvas({
       const n = list[i];
       if (n.x == null || n.y == null) continue;
       if (Math.abs(x - n.x) <= n.w / 2 + 2 && Math.abs(y - n.y) <= n.h / 2 + 2) return n;
+    }
+    return null;
+  }, []);
+
+  /** 배지 위인지 검사 */
+  const hitBadge = useCallback((clientX: number, clientY: number): SimNode | null => {
+    const canvas = canvasRef.current;
+    const b = badgesRef.current;
+    if (!canvas || !b) return null;
+    const rect = canvas.getBoundingClientRect();
+    const t = transformRef.current;
+    const x = (clientX - rect.left - t.x) / t.k;
+    const y = (clientY - rect.top - t.y) / t.k;
+    for (const n of simNodesRef.current) {
+      if (!b[n.id] || n.x == null || n.y == null) continue;
+      const bx = n.x + n.w / 2 - 2, by = n.y - n.h / 2 + 2;
+      if (Math.hypot(x - bx, y - by) <= BADGE_R + 4) return n;
     }
     return null;
   }, []);
@@ -336,8 +397,8 @@ export default function GraphCanvas({
         if ((event as MouseEvent).button) return false;
         const me = event as MouseEvent & TouchEvent;
         const pt = me.touches?.[0] ?? me;
-        // 노드 위에서는 드래그가, 빈 곳에서는 팬이 동작
-        return !hitTest(pt.clientX, pt.clientY);
+        // 노드 위에서는 드래그가, 빈 곳에서는 팬이 동작 (배지 위에서는 둘 다 아님)
+        return !hitTest(pt.clientX, pt.clientY) && !hitBadge(pt.clientX, pt.clientY);
       })
       .on("zoom", (event: D3ZoomEvent<HTMLCanvasElement, unknown>) => {
         transformRef.current = event.transform;
@@ -350,6 +411,7 @@ export default function GraphCanvas({
       .subject((event: D3DragEvent<HTMLCanvasElement, unknown, SimNode>) => {
         const se = event.sourceEvent as MouseEvent & TouchEvent;
         const pt = se.touches?.[0] ?? se;
+        if (hitBadge(pt.clientX, pt.clientY)) return undefined as unknown as SimNode;
         // undefined를 돌려주면 d3-drag가 드래그를 시작하지 않는다 (타입 정의가 이를 허용하지 않아 캐스팅)
         return (hitTest(pt.clientX, pt.clientY) ?? undefined) as unknown as SimNode;
       })
@@ -394,11 +456,18 @@ export default function GraphCanvas({
       }
     };
     const onClick = (e: MouseEvent) => {
+      const badgeHit = hitBadge(e.clientX, e.clientY);
+      if (badgeHit) {
+        onToggleRef.current?.(badgeHit.id);
+        return;
+      }
       const hit = hitTest(e.clientX, e.clientY);
       onSelectRef.current(hit ? hit.id : null);
     };
     const onDbl = (e: MouseEvent) => {
-      if (!hitTest(e.clientX, e.clientY)) onDblRef.current?.();
+      const hit = hitTest(e.clientX, e.clientY);
+      if (hit) onToggleRef.current?.(hit.id);
+      else onDblRef.current?.();
     };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
@@ -429,7 +498,12 @@ export default function GraphCanvas({
       rafRef.current = null;
       animRef.current = null;
     };
-  }, [hitTest, requestDraw]);
+  }, [hitTest, hitBadge, requestDraw]);
+
+  // 배지가 바뀌면 다시 그림
+  useEffect(() => {
+    requestDraw();
+  }, [badges, requestDraw]);
 
   // ---------- 데이터 → 시뮬레이션 반영 ----------
   useEffect(() => {

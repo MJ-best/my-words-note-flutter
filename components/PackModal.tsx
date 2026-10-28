@@ -37,7 +37,7 @@ export default function PackModal({ api, onDone, onClose }: Props) {
 
   async function run() {
     setBusy(true);
-    const r = await api.importGraph(compiled, { dedupe: true });
+    const r = await api.importGraph(compiled, { dedupe: true, label: `스타터 팩 · ${pack.title}` });
     setBusy(false);
     onDone(`${pack.title} 팩에서 표현 ${r.nodes}개, 연결 ${r.edges}개, 예문 ${r.examples}개를 추가했습니다.`);
   }

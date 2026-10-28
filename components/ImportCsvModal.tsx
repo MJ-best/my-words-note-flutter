@@ -53,7 +53,7 @@ export default function ImportCsvModal({ api, knownLangs, knownDomains, onDone, 
   async function run() {
     if (!conv) return;
     setBusy(true);
-    const r = await api.importGraph(conv.data, { dedupe: true });
+    const r = await api.importGraph(conv.data, { dedupe: true, label: `CSV · ${fileName ?? "붙여넣기"}` });
     setBusy(false);
     onDone(`표현 ${r.nodes}개, 연결 ${r.edges}개, 예문 ${r.examples}개를 추가했습니다.${conv.skipped ? ` (비어 있는 ${conv.skipped}행은 건너뜀)` : ""}`);
   }

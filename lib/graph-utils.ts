@@ -39,3 +39,52 @@ export function pct(w: number): string {
 export function normalizeLang(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z-]/g, "").slice(0, 8) || "xx";
 }
+
+/** 언어별로 가중치가 가장 높은 대응 번역 (상황을 주면 그 상황의 연결만) */
+export function bestByLang(
+  nodes: Map<string, GraphNode>,
+  edges: GraphEdge[],
+  nodeId: string,
+  situation: string | null = null,
+): Array<{ lang: string; other: GraphNode; weight: number; situation: string | null }> {
+  const m = new Map<string, { lang: string; other: GraphNode; weight: number; situation: string | null }>();
+  for (const e of edges) {
+    if (e.source_id !== nodeId && e.target_id !== nodeId) continue;
+    if (relationFrom(e, nodeId) !== "equivalent") continue;
+    if (situation && e.situation !== situation) continue;
+    const other = nodes.get(otherEnd(e, nodeId));
+    if (!other) continue;
+    const cur = m.get(other.lang);
+    if (!cur || e.weight > cur.weight) m.set(other.lang, { lang: other.lang, other, weight: e.weight, situation: e.situation });
+  }
+  return Array.from(m.values());
+}
+
+/**
+ * 펼쳐진 노드 집합에서 보이는 서브그래프를 파생한다.
+ * 보이는 노드 = 펼쳐진 노드 + 그 1촌 이웃. 보이는 연결 = 한쪽 끝이 펼쳐진 노드인 연결.
+ */
+export function subgraph(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  expanded: Iterable<string>,
+): { nodes: GraphNode[]; edges: GraphEdge[]; ids: Set<string> } {
+  const exp = new Set(expanded);
+  if (exp.size === 0) return { nodes: [], edges: [], ids: new Set() };
+  const ids = new Set<string>(exp);
+  const vEdges: GraphEdge[] = [];
+  for (const e of edges) {
+    if (exp.has(e.source_id) || exp.has(e.target_id)) {
+      ids.add(e.source_id);
+      ids.add(e.target_id);
+      vEdges.push(e);
+    }
+  }
+  const byId = new Set(nodes.map((n) => n.id));
+  for (const id of Array.from(ids)) if (!byId.has(id)) ids.delete(id);
+  return {
+    nodes: nodes.filter((n) => ids.has(n.id)),
+    edges: vEdges.filter((e) => ids.has(e.source_id) && ids.has(e.target_id)),
+    ids,
+  };
+}
