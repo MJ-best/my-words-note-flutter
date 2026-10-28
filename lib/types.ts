@@ -18,6 +18,7 @@ export interface GraphNode {
   register: string | null;
   note: string | null;
   preferred: boolean;
+  import_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +33,7 @@ export interface GraphEdge {
   note: string | null;
   situation: string | null; // 이 대응이 적합한 상황 (환자 설명, 법정, 차트 ...)
   uses: number;
+  import_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +46,39 @@ export interface Example {
   translation: string | null;
   situation: string | null;
   source: string | null;
+  import_id?: string | null;
+  created_at: string;
+}
+
+/** 가져오기 기록 (되돌리기용) */
+export interface ImportRecord {
+  id: string;
+  label: string;
+  nodes: number;
+  edges: number;
+  examples: number;
+  created_at: string;
+}
+
+export type Confidence = "high" | "medium" | "low";
+
+/** AI 추출 결과 검수 대기 항목. 승인되기 전까지 본 그래프에 들어가지 않는다. */
+export interface InboxItem {
+  id: string;
+  import_id: string;
+  source_text: string;
+  source_lang: string;
+  target_text: string;
+  target_lang: string;
+  relation: Relation;
+  weight: number; // 0..1
+  situation: string | null;
+  note: string | null;
+  register: string | null;
+  domain: string | null;
+  example: { text: string; translation: string; situation: string | null } | null;
+  confidence: Confidence;
+  row: number; // 원본 시트 행 번호 (1부터)
   created_at: string;
 }
 

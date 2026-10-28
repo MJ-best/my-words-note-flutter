@@ -6,8 +6,12 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  limit,
+  orderBy,
+  query,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
   type CollectionReference,
   type DocumentData,
@@ -19,6 +23,8 @@ import type {
   ExampleInput,
   GraphEdge,
   GraphNode,
+  ImportRecord,
+  InboxItem,
   NodeInput,
 } from "@/lib/types";
 
@@ -56,6 +62,8 @@ export function useGraph(userId: string) {
       nodes: collection(db, "users", userId, "nodes") as CollectionReference<DocumentData>,
       edges: collection(db, "users", userId, "edges") as CollectionReference<DocumentData>,
       examples: collection(db, "users", userId, "examples") as CollectionReference<DocumentData>,
+      imports: collection(db, "users", userId, "imports") as CollectionReference<DocumentData>,
+      inbox: collection(db, "users", userId, "inbox") as CollectionReference<DocumentData>,
     }),
     [db, userId],
   );
@@ -63,6 +71,8 @@ export function useGraph(userId: string) {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [examples, setExamples] = useState<Example[]>([]);
+  const [imports, setImports] = useState<ImportRecord[]>([]);
+  const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const weightTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -83,7 +93,13 @@ export function useGraph(userId: string) {
     setLoading(true);
     setError(null);
     try {
-      const [n, e, x] = await Promise.all([getDocs(cols.nodes), getDocs(cols.edges), getDocs(cols.examples)]);
+      const [n, e, x, im, ib] = await Promise.all([
+        getDocs(cols.nodes),
+        getDocs(cols.edges),
+        getDocs(cols.examples),
+        getDocs(query(cols.imports, orderBy("created_at", "desc"), limit(5))),
+        getDocs(cols.inbox),
+      ]);
       const byCreated = <T extends { created_at: string }>(a: T, b: T) => a.created_at.localeCompare(b.created_at);
       setNodes(n.docs.map((d) => ({ ...(d.data() as Omit<GraphNode, "id">), id: d.id })).sort(byCreated));
       setEdges(
@@ -95,6 +111,8 @@ export function useGraph(userId: string) {
           .sort(byCreated),
       );
       setExamples(x.docs.map((d) => ({ ...(d.data() as Omit<Example, "id">), id: d.id })).sort(byCreated));
+      setImports(im.docs.map((d) => ({ ...(d.data() as Omit<ImportRecord, "id">), id: d.id })));
+      setInbox(ib.docs.map((d) => ({ ...(d.data() as Omit<InboxItem, "id">), id: d.id })).sort((a, b) => a.row - b.row));
     } catch (err) {
       fail(err);
     }
@@ -314,10 +332,11 @@ export function useGraph(userId: string) {
   const importGraph = useCallback(
     async (
       data: ImportData,
-      options: { dedupe?: boolean } = {},
+      options: { dedupe?: boolean; importId?: string; label?: string } = {},
     ): Promise<{ nodes: number; edges: number; examples: number }> => {
       setError(null);
       const ts = now();
+      const importId = options.importId ?? doc(cols.imports).id;
       const idMap = new Map<string, string>();
       const writes: Array<{ col: CollectionReference<DocumentData>; id: string; data: DocumentData }> = [];
       const counts = { nodes: 0, edges: 0, examples: 0 };
@@ -351,6 +370,7 @@ export function useGraph(userId: string) {
             register: n.register ?? null,
             note: n.note ?? null,
             preferred: n.preferred ?? false,
+            import_id: importId,
             created_at: ts,
             updated_at: ts,
           },
@@ -377,6 +397,7 @@ export function useGraph(userId: string) {
             note: e.note ?? null,
             situation: e.situation ?? null,
             uses: e.uses ?? 0,
+            import_id: importId,
             created_at: ts,
             updated_at: ts,
           },
@@ -399,6 +420,7 @@ export function useGraph(userId: string) {
             translation: x.translation ?? null,
             situation: x.situation ?? null,
             source: x.source ?? null,
+            import_id: importId,
             created_at: ts,
           },
         });
@@ -410,6 +432,16 @@ export function useGraph(userId: string) {
           for (const w of writes.slice(i, i + BATCH_LIMIT)) batch.set(doc(w.col, w.id), w.data);
           await batch.commit();
         }
+        if (writes.length > 0) {
+          const record: Omit<ImportRecord, "id"> = {
+            label: options.label ?? "가져오기",
+            nodes: counts.nodes,
+            edges: counts.edges,
+            examples: counts.examples,
+            created_at: ts,
+          };
+          await setDoc(doc(cols.imports, importId), record);
+        }
       } catch (err) {
         fail(err);
       }
@@ -419,12 +451,90 @@ export function useGraph(userId: string) {
     [db, cols, userId, nodes, edges, examples, fail, load],
   );
 
+  /** 특정 가져오기로 생성된 노드·연결·예문을 모두 삭제한다 (재사용된 기존 노드는 남는다). */
+  const undoImport = useCallback(
+    async (importId: string) => {
+      try {
+        const [n, e, x] = await Promise.all([
+          getDocs(query(cols.nodes, where("import_id", "==", importId))),
+          getDocs(query(cols.edges, where("import_id", "==", importId))),
+          getDocs(query(cols.examples, where("import_id", "==", importId))),
+        ]);
+        const refs = [...n.docs, ...e.docs, ...x.docs].map((d) => d.ref);
+        refs.push(doc(cols.imports, importId));
+        for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          for (const r of refs.slice(i, i + BATCH_LIMIT)) batch.delete(r);
+          await batch.commit();
+        }
+        return { nodes: n.size, edges: e.size, examples: x.size };
+      } catch (err) {
+        fail(err);
+        return null;
+      } finally {
+        await load();
+      }
+    },
+    [db, cols, fail, load],
+  );
+
+  // ----- 검수 대기열 (AI 추출 결과) -----
+  const addInboxItems = useCallback(
+    async (items: Array<Omit<InboxItem, "id" | "created_at">>) => {
+      const ts = now();
+      const created: InboxItem[] = items.map((it) => ({ ...it, id: doc(cols.inbox).id, created_at: ts }));
+      try {
+        for (let i = 0; i < created.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          for (const it of created.slice(i, i + BATCH_LIMIT)) batch.set(doc(cols.inbox, it.id), strip(it));
+          await batch.commit();
+        }
+        setInbox((prev) => [...prev, ...created].sort((a, b) => a.row - b.row));
+      } catch (err) {
+        fail(err);
+      }
+      return created;
+    },
+    [db, cols, fail],
+  );
+
+  const updateInboxItem = useCallback(
+    async (id: string, patch: Partial<InboxItem>) => {
+      setInbox((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+      try {
+        await updateDoc(doc(cols.inbox, id), patch);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    [cols, fail],
+  );
+
+  const deleteInboxItems = useCallback(
+    async (ids: string[]) => {
+      const set = new Set(ids);
+      setInbox((prev) => prev.filter((it) => !set.has(it.id)));
+      try {
+        for (let i = 0; i < ids.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          for (const id of ids.slice(i, i + BATCH_LIMIT)) batch.delete(doc(cols.inbox, id));
+          await batch.commit();
+        }
+      } catch (err) {
+        fail(err);
+      }
+    },
+    [db, cols, fail],
+  );
+
   const clearAll = useCallback(async () => {
     try {
       const refs = [
         ...nodes.map((n) => doc(cols.nodes, n.id)),
         ...edges.map((e) => doc(cols.edges, e.id)),
         ...examples.map((x) => doc(cols.examples, x.id)),
+        ...imports.map((i) => doc(cols.imports, i.id)),
+        ...inbox.map((i) => doc(cols.inbox, i.id)),
       ];
       for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
         const batch = writeBatch(db);
@@ -435,12 +545,14 @@ export function useGraph(userId: string) {
       fail(err);
     }
     await load();
-  }, [db, cols, nodes, edges, examples, fail, load]);
+  }, [db, cols, nodes, edges, examples, imports, inbox, fail, load]);
 
   return {
     nodes,
     edges,
     examples,
+    imports,
+    inbox,
     loading,
     error,
     reload: load,
@@ -456,6 +568,10 @@ export function useGraph(userId: string) {
     deleteExample,
     exportGraph,
     importGraph,
+    undoImport,
+    addInboxItems,
+    updateInboxItem,
+    deleteInboxItems,
     clearAll,
     dismissError: () => setError(null),
   };

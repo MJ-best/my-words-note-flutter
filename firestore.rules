@@ -1,14 +1,29 @@
 rules_version = '2';
 
-// Nuance Graph: 각 사용자는 users/{자기 uid}/ 아래의 문서만 읽고 쓸 수 있다.
+// Nuance Graph
+//  - 각 사용자는 users/{자기 uid}/ 아래의 정해진 컬렉션만 읽고 쓸 수 있다.
+//  - waitlist 는 전문가 팩 사전 신청 기록. 본인 uid 로 시작하는 문서 하나만 만들 수 있고, 본인 것만 읽는다.
 // Firebase 콘솔 → Firestore Database → 규칙 탭에 붙여 넣고 "게시"하세요.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid}/{collection}/{docId} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
-        && collection in ['nodes', 'edges', 'examples'];
+        && collection in ['nodes', 'edges', 'examples', 'imports', 'inbox'];
     }
+
+    match /waitlist/{docId} {
+      allow create: if request.auth != null
+        && docId == request.auth.uid + '_' + request.resource.data.packId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.packId is string
+        && request.resource.data.packId.size() <= 40
+        && request.resource.data.type in ['buyer', 'creator']
+        && request.resource.data.keys().hasOnly(['uid', 'packId', 'type', 'created_at']);
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

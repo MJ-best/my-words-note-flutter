@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Example, GraphEdge, GraphNode, Relation } from "@/lib/types";
 import { KINDS, RELATIONS, SITUATIONS, langColor, langLabel, registerLabel } from "@/lib/types";
-import { edgesOf, otherEnd, pct, relationFrom } from "@/lib/graph-utils";
+import { bestByLang as computeBest, edgesOf, otherEnd, pct, relationFrom } from "@/lib/graph-utils";
 import type { GraphApi } from "@/lib/useGraph";
 import SuggestBox from "./SuggestBox";
 
@@ -18,9 +18,12 @@ interface Props {
   onEdit: () => void;
   onAddEdge: () => void;
   onClose: () => void;
+  /** 이 표현을 탐색의 중심으로 (그래프 탐색기에서만) */
+  onCenter?: () => void;
+  isCenter?: boolean;
 }
 
-export default function NodePanel({ node, nodes, edges, examples, api, aiEnabled, onSelect, onEdit, onAddEdge, onClose }: Props) {
+export default function NodePanel({ node, nodes, edges, examples, api, aiEnabled, onSelect, onEdit, onAddEdge, onClose, onCenter, isCenter }: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const myEdges = useMemo(
     () =>
@@ -44,16 +47,10 @@ export default function NodePanel({ node, nodes, edges, examples, api, aiEnabled
   const activeSituation = situationFilter && situations.includes(situationFilter) ? situationFilter : null;
 
   // 언어별로 가장 적합한 대응 표현 (내 가중치 기준, 상황을 고르면 그 상황의 연결만)
-  const bestByLang = useMemo(() => {
-    const m = new Map<string, { other: GraphNode; weight: number; situation: string | null }>();
-    for (const { edge, other, rel } of myEdges) {
-      if (rel !== "equivalent") continue;
-      if (activeSituation && edge.situation !== activeSituation) continue;
-      const cur = m.get(other.lang);
-      if (!cur || edge.weight > cur.weight) m.set(other.lang, { other, weight: edge.weight, situation: edge.situation });
-    }
-    return Array.from(m.entries());
-  }, [myEdges, activeSituation]);
+  const bestByLang = useMemo(
+    () => computeBest(byId, edges, node.id, activeSituation).map((b) => [b.lang, b] as const),
+    [byId, edges, node.id, activeSituation],
+  );
 
   const [exText, setExText] = useState("");
   const [exTr, setExTr] = useState("");
@@ -88,6 +85,7 @@ export default function NodePanel({ node, nodes, edges, examples, api, aiEnabled
             {node.preferred ? "★ 선호 해제" : "☆ 선호 표현으로"}
           </button>
           <button className="btn sm" onClick={onEdit}>수정</button>
+          {onCenter && !isCenter && <button className="btn sm" onClick={onCenter} title="이 표현을 중심으로 가지를 펼쳐 봅니다">◎ 중심으로</button>}
           {confirmDelete ? (
             <>
               <button className="btn sm danger" onClick={() => { api.deleteNode(node.id); onClose(); }}>정말 삭제</button>
