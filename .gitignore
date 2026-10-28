@@ -20,3 +20,4 @@ legacy-flutter/.dart_tool/
 legacy-flutter/build/
 legacy-flutter/.flutter-plugins
 legacy-flutter/.flutter-plugins-dependencies
+e2e-failure-*.png

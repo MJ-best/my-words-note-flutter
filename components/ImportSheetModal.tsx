@@ -31,6 +31,7 @@ export default function ImportSheetModal({ api, aiEnabled, knownLangs, knownDoma
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [paste, setPaste] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ----- 2. 방법 -----
@@ -83,7 +84,10 @@ export default function ImportSheetModal({ api, aiEnabled, knownLangs, knownDoma
   async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
-    if (!f) return;
+    if (f) await loadFile(f);
+  }
+
+  async function loadFile(f: File) {
     try {
       const { rows: r, sheetName } = await parseSpreadsheetFile(f);
       loadRows(r, sheetName ? `${f.name} · ${sheetName}` : f.name);
@@ -205,10 +209,22 @@ export default function ImportSheetModal({ api, aiEnabled, knownLangs, knownDoma
           <div className="hint">
             엑셀(.xlsx)이나 CSV 파일, 또는 <b>링크가 있는 모든 사용자에게 보기 허용</b>된 구글 시트 링크를 넣으세요. 데이터는 브라우저에서 읽고, 내 계정에만 저장됩니다.
           </div>
+          <div
+            className={`dropzone${dragging ? " active" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={async (e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) await loadFile(f); }}
+            onClick={() => fileRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileRef.current?.click(); }}
+          >
+            <b>파일을 여기에 끌어다 놓거나 클릭해서 선택</b>
+            <span className="hint">.xlsx · .xls · .csv · .tsv</span>
+            <input ref={fileRef} type="file" accept=".xlsx,.xlsm,.xls,.ods,.csv,.tsv,.txt" hidden onChange={pickFile} onClick={(e) => e.stopPropagation()} />
+          </div>
           <div className="row">
-            <button type="button" className="btn primary" onClick={() => fileRef.current?.click()}>파일 선택 (.xlsx / .csv)</button>
             <button type="button" className="btn ghost" onClick={downloadTemplate}>샘플 CSV 받기</button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xlsm,.xls,.ods,.csv,.tsv,.txt" hidden onChange={pickFile} />
           </div>
           <div className="field">
             <label>구글 시트 링크</label>

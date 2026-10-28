@@ -160,7 +160,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
         </nav>
 
         {view !== "dashboard" && (
-          <SearchBox ref={searchRef} nodes={nodes} onPick={openNode} placeholder="표현 검색" />
+          <SearchBox ref={searchRef} nodes={nodes} edges={edges} onPick={openNode} placeholder="표현 검색" />
         )}
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", position: "relative" }}>

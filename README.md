@@ -90,6 +90,21 @@ npx firebase-tools emulators:start --only auth,firestore --project demo-nuance
 - 상단의 **언어 칩**으로 특정 언어만 보거나 숨기고, **분야** 드롭다운으로 의료/법률만 볼 수 있습니다.
 - 메뉴(☰) → **JSON으로 내보내기 / 가져오기**로 백업·복원합니다.
 
+## 테스트 (E2E)
+
+Firebase 에뮬레이터 위에서 Playwright로 PRD 시나리오 두 개를 돌립니다. 실제 Firebase 프로젝트나 API 키는 필요 없습니다.
+
+```bash
+npm i -g firebase-tools          # 처음 한 번 (Java 필요)
+npx playwright install chromium  # 처음 한 번
+npm run emulators                # 터미널 A: Auth + Firestore 에뮬레이터 (firebase.json, firestore.rules 사용)
+npm run test:e2e                 # 터미널 B: 개발 서버를 에뮬레이터 설정으로 띄우고 테스트 실행
+```
+
+- `tests/e2e/explorer.test.js`: 가입 → 스타터 팩 → 대시보드 검색 → 1촌 그래프 → 더블클릭 확장·접기 → 중심 전환·브레드크럼·뒤로 가기 → 전체 보기 → 팩 신청 유지 → 되돌리기
+- `tests/e2e/import.test.js`: 엑셀 매핑 가져오기 → 잘못된 시트 링크 오류 → 검수 대기열(주입) 정렬·반영 → 스탯 증가 → 기존 연결 가중치 갱신 → 상황 태그 검색
+- AI 추출 호출 자체는 키가 없으면 건너뜁니다. 키가 있으면 `ANTHROPIC_API_KEY=... npm run test:e2e` 로 돌릴 수 있습니다 (호출 비용 발생).
+
 ## 프로젝트 구조
 
 ```
@@ -121,6 +136,8 @@ lib/
   useViewState.ts       # 화면 상태를 URL에 두는 훅
   packs/                # 스타터 팩 (medical.ts, legal.ts) 과 컴파일러
 firestore.rules         # 본인 데이터만 접근하도록 하는 보안 규칙
+firebase.json           # 에뮬레이터 설정 (테스트용)
+tests/e2e/              # Playwright E2E 시나리오와 실행기
 legacy-flutter/         # 이전 Flutter 앱 (참고용, 더 이상 사용하지 않음)
 ```
 
