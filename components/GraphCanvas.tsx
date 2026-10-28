@@ -574,7 +574,7 @@ export default function GraphCanvas({
     const k = Math.max(transformRef.current.k, 1.3);
     // 모바일에서는 아래쪽 70%를 패널이 덮으므로 위쪽 영역의 가운데로 맞춘다
     const mobile = window.matchMedia("(max-width: 860px)").matches;
-    const cy = wrap.clientHeight * (mobile ? 0.15 : 0.5);
+    const cy = wrap.clientHeight * (mobile ? 0.2 : 0.5);
     animateTo(zoomIdentity.translate(wrap.clientWidth / 2 - n.x * k, cy - n.y * k).scale(k));
   }, [focus, animateTo]);
 

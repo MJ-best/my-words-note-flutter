@@ -15,7 +15,8 @@ import SearchBox from "./SearchBox";
 import NodeForm from "./NodeForm";
 import EdgeForm from "./EdgeForm";
 import PackModal from "./PackModal";
-import ImportCsvModal from "./ImportCsvModal";
+import ImportSheetModal from "./ImportSheetModal";
+import InboxModal from "./InboxModal";
 import Brand, { PenguinMark } from "./Brand";
 
 interface Props {
@@ -36,6 +37,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [packOpen, setPackOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -158,17 +160,21 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
         </nav>
 
         {view !== "dashboard" && (
-          <SearchBox ref={searchRef} nodes={nodes} onPick={openNode} className="hide-mobile" placeholder="표현 검색" />
+          <SearchBox ref={searchRef} nodes={nodes} onPick={openNode} placeholder="표현 검색" />
         )}
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
+          {api.inbox.length > 0 && (
+            <button className="btn" onClick={() => setInboxOpen(true)} title="AI 추출 결과 검수">검수 <span className="badge" style={{ background: "var(--danger)", color: "#fff", borderRadius: 999, padding: "0 7px", fontSize: 12 }}>{api.inbox.length}</span></button>
+          )}
           <button className="btn primary desktop-only" onClick={() => setNodeForm({ mode: "new" })}>+ 표현</button>
           <button className="btn icon" onClick={() => setMenuOpen((v) => !v)} aria-label="메뉴">☰</button>
           {menuOpen && (
             <div className="search-results" style={{ left: "auto", right: 0, width: 280 }} onMouseLeave={() => setMenuOpen(false)}>
               <div className="hint" style={{ padding: "6px 10px" }}>{email}</div>
               <button onClick={() => { setPackOpen(true); setMenuOpen(false); }}>스타터 팩 추가…</button>
-              <button onClick={() => { setCsvOpen(true); setMenuOpen(false); }}>CSV 용어집 가져오기…</button>
+              <button onClick={() => { setCsvOpen(true); setMenuOpen(false); }}>시트·CSV 가져오기…</button>
+              {api.inbox.length > 0 && <button onClick={() => { setInboxOpen(true); setMenuOpen(false); }}>검수 대기열 ({api.inbox.length})…</button>}
               <button onClick={downloadExport}>JSON으로 내보내기</button>
               <button onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
               {lastImport && (
@@ -211,7 +217,7 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
             <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
               <button className="btn primary" onClick={() => setPackOpen(true)}>스타터 팩으로 시작</button>
               <button className="btn" onClick={async () => { await api.importGraph(SEED, { label: "예시 그래프" }); }}>작은 예시 그래프</button>
-              <button className="btn" onClick={() => setCsvOpen(true)}>내 용어집 CSV 가져오기</button>
+              <button className="btn" onClick={() => setCsvOpen(true)}>내 용어집(엑셀·CSV·구글 시트) 가져오기</button>
               <button className="btn ghost" onClick={() => setNodeForm({ mode: "new" })}>빈 그래프에서 시작</button>
             </div>
             <p className="hint" style={{ margin: 0 }}>스타터 팩: 의료 통역·법률 통역 (한국어·영어·일본어·러시아어)</p>
@@ -252,13 +258,17 @@ export default function Workspace({ userId, email, aiEnabled }: Props) {
         />
       )}
       {csvOpen && (
-        <ImportCsvModal
+        <ImportSheetModal
           api={api}
+          aiEnabled={aiEnabled}
           knownLangs={knownLangs.length ? knownLangs : ["ko", "en", "ja", "ru"]}
           knownDomains={knownDomains}
-          onDone={(msg) => { setCsvOpen(false); showToast(msg); }}
+          onDone={(msg, openInbox) => { setCsvOpen(false); showToast(msg); if (openInbox) setInboxOpen(true); }}
           onClose={() => setCsvOpen(false)}
         />
+      )}
+      {inboxOpen && (
+        <InboxModal api={api} onDone={(msg) => { setInboxOpen(false); showToast(msg); }} onClose={() => setInboxOpen(false)} />
       )}
       {toast && (
         <div className="toast" role="status" onClick={() => setToast(null)}>{toast}</div>

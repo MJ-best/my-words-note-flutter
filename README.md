@@ -38,7 +38,7 @@
 1. <https://console.firebase.google.com> 에서 새 프로젝트를 만듭니다 (Spark 무료 플랜, Google Analytics는 꺼도 됩니다).
 2. **빌드 → Authentication → 시작하기 → Sign-in method** 에서 **이메일/비밀번호** 를 사용 설정합니다. (이메일 링크 로그인은 끈 채로 둡니다.)
 3. **빌드 → Firestore Database → 데이터베이스 만들기** → 위치를 고르고 **프로덕션 모드**로 만듭니다.
-4. Firestore의 **규칙** 탭에 [`firestore.rules`](firestore.rules) 내용을 붙여 넣고 **게시**합니다. 이 규칙이 "로그인한 사용자는 자기 데이터만" 을 강제합니다.
+4. Firestore의 **규칙** 탭에 [`firestore.rules`](firestore.rules) 내용을 붙여 넣고 **게시**합니다. 이 규칙이 "로그인한 사용자는 자기 데이터만" 을 강제합니다. (v2에서 `imports`, `inbox`, `waitlist` 가 추가되었으니 기존 프로젝트도 규칙을 다시 게시하세요.)
 5. **프로젝트 설정(톱니바퀴) → 일반 → 내 앱 → 웹 앱 추가(</>)** 로 웹 앱을 등록하고, 표시되는 `firebaseConfig` 값들을 복사합니다.
 
 ### 2. 로컬 실행
@@ -60,16 +60,25 @@ npx firebase-tools emulators:start --only auth,firestore --project demo-nuance
 1. 이 저장소를 GitHub에 올리고 <https://vercel.com> 에서 **Import** 합니다. 프레임워크는 자동으로 Next.js로 잡힙니다.
 2. **Environment Variables** 에 아래를 추가합니다.
    - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` — `.env.example` 참고
-   - (선택) `ANTHROPIC_API_KEY` — 넣으면 패널에 **AI 제안** 섹션이 나타납니다.
+   - (선택) `ANTHROPIC_API_KEY` — 넣으면 패널의 **AI 제안**과 가져오기의 **AI 뉘앙스 추출**이 켜집니다.
    - (선택) `ANTHROPIC_MODEL` — 기본값 `claude-opus-5-5`. 비용을 낮추려면 `claude-sonnet-5-5` 또는 `claude-haiku-5-5`.
 3. Deploy. 이후에는 `main` 브랜치에 push 할 때마다 자동 배포됩니다.
 
 배포 주소에서 로그인이 막히면 Firebase **Authentication → 설정 → 승인된 도메인** 에 Vercel 도메인(`xxx.vercel.app`)을 추가하세요. 이메일/비밀번호 로그인은 보통 추가 없이도 동작합니다.
 
+## 화면 구성 (v2)
+
+- **대시보드**: 스포트라이트 검색(⌘K 또는 /), 요약 스탯(표현 수와 언어 비중, 연결 수, 실전 사용 누적, 집중 관리 표현), 카드 그리드(★ 선호 / ⚠ 혼동 주의 / 🔥 실전 다빈도 / 🕒 최근). 카드를 누르면 그 표현을 중심으로 그래프가 열립니다.
+- **그래프**: 전체를 한 번에 그리지 않고 **중심 표현 + 1촌 이웃**만 보여 줍니다. 노드의 `+` 배지나 더블클릭으로 가지를 펼치고 `–`로 접습니다. 한 번에 40개까지 보이고, 넘치면 경로에 없는 오래된 가지부터 접습니다. 상단 브레드크럼으로 이전 중심으로 돌아가고, 화면 상태가 URL(`?view=graph&node=…`)에 있어 뒤로 가기와 링크 공유가 됩니다. "전체 보기"는 언어·분야 필터와 함께 남겨 두었습니다.
+- **전문가 팩**: 준비 중인 분야별 팩의 예시 구성과 출시 알림·파트너 신청. 신청은 `waitlist/{uid}_{packId}` 문서로 기록됩니다.
+
 ## 데이터 채우기
 
 - **스타터 팩** (메뉴 ☰ → 스타터 팩 추가): 의료 통역·법률 통역 팩이 들어 있습니다. 한국어·영어·일본어·러시아어 중 원하는 언어만 골라 넣을 수 있고, 가중치·상황·메모는 초안이니 패널에서 고치면 됩니다. 이미 있는 표현은 중복 생성하지 않습니다. 팩 내용은 `lib/packs/*.ts`에 있어 직접 고치거나 새 팩을 추가할 수 있습니다.
-- **CSV 용어집 가져오기** (메뉴 ☰ → CSV 용어집 가져오기): Trados, memoQ, 엑셀에서 내보낸 용어집을 넣습니다. `source, target` 두 열만 있으면 되고 `source_lang, target_lang, domain, situation, weight, note, register, relation, example, example_translation` 열은 있으면 함께 읽습니다. 한국어 열 이름(원문, 번역, 분야, 상황, 가중치, 메모, 예문)도 인식하며, 쉼표·탭·세미콜론 구분을 자동 감지합니다. 모달의 "샘플 CSV 받기"로 양식을 받을 수 있습니다.
+- **시트·CSV 가져오기** (메뉴 ☰ → 시트·CSV 가져오기): 엑셀(.xlsx), CSV, 또는 "링크가 있는 모든 사용자에게 보기 허용"된 구글 시트 링크를 넣습니다. 두 가지 방법이 있습니다.
+  - *열 매핑으로 바로 가져오기*: `source, target`(원문, 번역) 열을 찾아 그대로 넣습니다. `source_lang, target_lang, domain, situation, weight, note, register, relation, example, example_translation` 열은 있으면 함께 읽고, 한국어 열 이름도 인식합니다. AI 키가 없어도 됩니다.
+  - *AI로 뉘앙스 추출* (`ANTHROPIC_API_KEY` 필요): "painkiller(환자용), analgesic(의사용) · 뉘앙스 주의" 같은 비정형 메모를 표현·관계·상황·가중치로 분리합니다. 25행씩 나눠 호출하고 실행 전에 예상 비용을 보여 줍니다. 결과는 바로 들어가지 않고 **검수 대기열**(`users/{uid}/inbox`)에 저장되어, 확신도가 낮은 것부터 고친 뒤 선택 반영합니다. 창을 닫아도 대기열은 남습니다.
+- **되돌리기**: 모든 가져오기는 `import_id`로 묶이므로 메뉴의 "최근 가져오기 되돌리기"로 한 번에 삭제할 수 있습니다 (재사용된 기존 표현은 남습니다).
 - **JSON 가져오기/내보내기**: 이 앱의 백업 형식입니다.
 
 ## 사용법
@@ -87,14 +96,20 @@ npx firebase-tools emulators:start --only auth,firestore --project demo-nuance
 app/
   page.tsx              # 환경 변수 확인 후 AuthGate 렌더
   login/page.tsx        # 이메일+비밀번호 로그인·가입
-  api/suggest/route.ts  # (선택) AI 제안 — Claude API (Firebase ID 토큰 검증)
+  api/suggest/route.ts         # (선택) AI 제안 — Claude API (Firebase ID 토큰 검증)
+  api/extract-nuance/route.ts  # (선택) 시트 25행 → 표현·관계·상황·가중치 추출
+  api/import-sheet/route.ts    # 공개 구글 시트를 CSV로 가져오기
 components/
   AuthGate.tsx          # 로그인 상태 확인, 미로그인 시 /login 으로
-  Workspace.tsx         # 상단바(검색·필터) + 캔버스 + 패널 조립
+  Workspace.tsx         # 상단 탭·메뉴·모달 조립, 화면 전환
+  Dashboard.tsx         # 스포트라이트 검색, 스탯, 카드 그리드
+  GraphExplorer.tsx     # 1촌 포커스 그래프, 펼치기·접기, 브레드크럼, 전체 보기
+  PacksView.tsx         # 전문가 팩 미리보기와 사전 신청
+  ImportSheetModal.tsx  # 엑셀·CSV·구글 시트 가져오기 (매핑 / AI 추출)
+  InboxModal.tsx        # AI 추출 결과 검수 대기열
   GraphCanvas.tsx       # d3-force 레이아웃 + Canvas 2D 렌더링, 줌/드래그/선택
   NodePanel.tsx         # 선택한 표현의 연결·가중치·예문
   PackModal.tsx         # 스타터 팩 선택·언어 선택·추가
-  ImportCsvModal.tsx    # CSV 용어집 미리보기·가져오기
   NodeForm.tsx, EdgeForm.tsx, SuggestBox.tsx, ...
 lib/
   types.ts              # 데이터 타입과 관계/언어 메타데이터
@@ -102,6 +117,8 @@ lib/
   useGraph.ts           # Firestore CRUD 훅 (낙관적 업데이트, 배치 삭제, JSON 내보내기/가져오기)
   seed.ts               # 작은 예시 그래프
   csv.ts                # CSV 파서와 가져오기 변환
+  sheets.ts             # 엑셀 파싱(SheetJS 동적 로드), 구글 시트 링크, 언어 추정
+  useViewState.ts       # 화면 상태를 URL에 두는 훅
   packs/                # 스타터 팩 (medical.ts, legal.ts) 과 컴파일러
 firestore.rules         # 본인 데이터만 접근하도록 하는 보안 규칙
 legacy-flutter/         # 이전 Flutter 앱 (참고용, 더 이상 사용하지 않음)
@@ -109,7 +126,7 @@ legacy-flutter/         # 이전 Flutter 앱 (참고용, 더 이상 사용하지
 
 ## 데이터 모델
 
-Firestore 경로: `users/{uid}/nodes/{id}`, `users/{uid}/edges/{id}`, `users/{uid}/examples/{id}`
+Firestore 경로: `users/{uid}/nodes`, `edges`, `examples`, `imports`(가져오기 기록), `inbox`(검수 대기열), 그리고 `waitlist/{uid}_{packId}`
 
 ```
 nodes     text, lang, kind(word|phrase|sentence), domain, register, note, preferred, created_at, updated_at

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { RELATIONS, langLabel } from "@/lib/types";
 import { SuggestRequestSchema } from "./schema";
+import { verifyIdToken } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -168,28 +169,5 @@ Return up to 6 suggestions.`;
       return NextResponse.json({ error: `AI 요청 실패 (${err.status}): ${err.message}` }, { status: 502 });
     }
     return NextResponse.json({ error: err instanceof Error ? err.message : "알 수 없는 오류" }, { status: 500 });
-  }
-}
-
-/**
- * Firebase ID 토큰 검증. 서비스 계정 없이 Identity Toolkit의 accounts:lookup 으로 확인한다.
- * 유효하면 uid, 아니면 null.
- */
-async function verifyIdToken(header: string | null): Promise<string | null> {
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  if (!token || !apiKey) return null;
-  try {
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken: token }),
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { users?: Array<{ localId?: string }> };
-    return data.users?.[0]?.localId ?? null;
-  } catch {
-    return null;
   }
 }
